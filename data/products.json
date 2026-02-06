@@ -1,0 +1,930 @@
+{
+  "ADA HANDLE": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 0.85
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 3.0
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 4.9
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 4.7
+    },
+    {
+      "sets_per_carton": 9,
+      "weight_kg": 8.3
+    },
+    {
+      "sets_per_carton": 10,
+      "weight_kg": 9.3
+    },
+    {
+      "sets_per_carton": 12,
+      "weight_kg": 11.2
+    }
+  ],
+  "K51GG-600": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 3.95
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 5.85
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 7.74
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 11.58
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 11.44
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 17.23
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 15.3
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 0.51
+    }
+  ],
+  "K51GG-600.背板": [
+    {
+      "sets_per_carton": 10,
+      "weight_kg": 0.25
+    },
+    {
+      "sets_per_carton": 15,
+      "weight_kg": 0.25
+    },
+    {
+      "sets_per_carton": 20,
+      "weight_kg": 0.25
+    }
+  ],
+  "K51GM-01": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 2.3
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 4.03
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 5.8
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 7.5
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 0.3
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 7.9
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 14.82
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 11.84
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 0.51
+    },
+    {
+      "sets_per_carton": 6,
+      "weight_kg": 22.4
+    }
+  ],
+  "K51GWL-600": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 1.9
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 3.37
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 4.77
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 6.54
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 6.72
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 9.52
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 12.96
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 0.25
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 9.84
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 14.06
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 0.51
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 0.34
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 12.98
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 18.58
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 0.51
+    },
+    {
+      "sets_per_carton": 6,
+      "weight_kg": 19.2
+    }
+  ],
+  "K51GWL-600-ROSS": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 3.12
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 5.99
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 11.98
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 14.86
+    }
+  ],
+  "K51M-400-X1": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 1.31
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 2.3
+    }
+  ],
+  "K51M-400-X2": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 2.3
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 4.4
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 6.63
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 8.68
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 10.73
+    },
+    {
+      "sets_per_carton": 6,
+      "weight_kg": 12.78
+    },
+    {
+      "sets_per_carton": 8,
+      "weight_kg": 16.91
+    }
+  ],
+  "K51M-400-X3": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 3.2
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 6.2
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 9.33
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 12.28
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 15.23
+    },
+    {
+      "sets_per_carton": 6,
+      "weight_kg": 18.18
+    },
+    {
+      "sets_per_carton": 7,
+      "weight_kg": 21.16
+    }
+  ],
+  "K51M-400-X4": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 4.18
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 8.34
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 12.29
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 16.23
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 20.16
+    }
+  ],
+  "K51M-400-X5": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 5.1
+    }
+  ],
+  "K51M-450-X1": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 1.3
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 2.3
+    }
+  ],
+  "K51M-450-X2": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 2.3
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 4.4
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 6.63
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 8.68
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 10.73
+    },
+    {
+      "sets_per_carton": 6,
+      "weight_kg": 12.78
+    },
+    {
+      "sets_per_carton": 8,
+      "weight_kg": 16.91
+    }
+  ],
+  "K51M-450-X3": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 3.2
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 6.2
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 9.33
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 12.28
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 15.23
+    },
+    {
+      "sets_per_carton": 6,
+      "weight_kg": 18.18
+    },
+    {
+      "sets_per_carton": 7,
+      "weight_kg": 21.16
+    }
+  ],
+  "K51M-450-X4": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 4.07
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 8.12
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 11.94
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 15.78
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 19.61
+    }
+  ],
+  "K51M-450": [
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 19.1
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 18.8
+    }
+  ],
+  "K51M-450-X5": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 4.97
+    }
+  ],
+  "檔環.K51M-450": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 0.65
+    }
+  ],
+  "K51M-455-X3": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 3.2
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 6.2
+    }
+  ],
+  "K51M-500-X1": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 1.5
+    }
+  ],
+  "K51M-500-X2": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 2.68
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 5.16
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 7.77
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 10.2
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 12.63
+    },
+    {
+      "sets_per_carton": 6,
+      "weight_kg": 15.06
+    },
+    {
+      "sets_per_carton": 8,
+      "weight_kg": 17.5
+    }
+  ],
+  "K51M-500-X3": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 3.7
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 7.38
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 10.85
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 14.3
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 17.76
+    }
+  ],
+  "K51M-500-X4": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 4.46
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 8.9
+    }
+  ],
+  "K51M-500-X5": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 5.6
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 11.18
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 16.55
+    }
+  ],
+  "K51M-500D-X1": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 1.6
+    }
+  ],
+  "K51M-500D-X3": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 3.82
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 7.62
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 11.21
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 14.78
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 18.36
+    }
+  ],
+  "K51M-500D": [
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 0.51
+    }
+  ],
+  "K51M-500D-316": [
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 0.51
+    }
+  ],
+  "K51M-500D-X4": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 5.0
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 9.98
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 14.75
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 19.5
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 24.26
+    }
+  ],
+  "K51M-500D-X5": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 6.1
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 12.18
+    }
+  ],
+  "K51M-560": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 0.25
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 0.51
+    }
+  ],
+  "K51M-600": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 0.25
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 4.3
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 5.73
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 8.44
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 12.66
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 16.95
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 22.43
+    }
+  ],
+  "K51M-640": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 1.4
+    },
+    {
+      "sets_per_carton": 6,
+      "weight_kg": 17.8
+    }
+  ],
+  "K51M-660": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 1.8
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 4.4
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 8.78
+    }
+  ],
+  "K51MP-450": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 1.35
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 2.4
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 3.33
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 4.22
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 4.6
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 6.5
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 6.93
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 9.54
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 9.08
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 12.8
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 16.39
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 11.23
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 15.88
+    },
+    {
+      "sets_per_carton": 6,
+      "weight_kg": 13.38
+    },
+    {
+      "sets_per_carton": 6,
+      "weight_kg": 18.96
+    },
+    {
+      "sets_per_carton": 8,
+      "weight_kg": 17.71
+    }
+  ],
+  "K51MP-450-316": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 3.3
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 4.3
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 6.4
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 9.63
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 12.68
+    }
+  ],
+  "K51P-500": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 4.12
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 5.95
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 8.22
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 11.78
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 12.11
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 17.53
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 15.98
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 19.86
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 0.51
+    }
+  ],
+  "K51P-500-316": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 3.8
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 5.94
+    }
+  ],
+  "K51SWRH": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 5.05
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 6.53
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 9.94
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 12.8
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 14.91
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 19.71
+    }
+  ],
+  "K51SWRH-545": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 0.3
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 9.59
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 12.8
+    }
+  ],
+  "檔環.K51SW": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 0.4
+    }
+  ],
+  "W41K-645": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 1.73
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 2.27
+    }
+  ],
+  "檔環.W41M 28.5用": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 0.25
+    }
+  ],
+  "W41M-400": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 1.77
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 2.32
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 3.34
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 4.44
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 6.69
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 8.76
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 10.83
+    },
+    {
+      "sets_per_carton": 6,
+      "weight_kg": 12.9
+    },
+    {
+      "sets_per_carton": 7,
+      "weight_kg": 0.51
+    }
+  ],
+  "W41M-450": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 1.79
+    },
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 2.35
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 3.38
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 4.5
+    },
+    {
+      "sets_per_carton": 2,
+      "weight_kg": 0.25
+    },
+    {
+      "sets_per_carton": 3,
+      "weight_kg": 5.1
+    },
+    {
+      "sets_per_carton": 4,
+      "weight_kg": 0.51
+    },
+    {
+      "sets_per_carton": 5,
+      "weight_kg": 0.51
+    },
+    {
+      "sets_per_carton": 7,
+      "weight_kg": 0.51
+    },
+    {
+      "sets_per_carton": 8,
+      "weight_kg": 0.51
+    }
+  ],
+  "DISPLAY + 海報": [
+    {
+      "sets_per_carton": 1,
+      "weight_kg": 2.3
+    }
+  ]
+}
