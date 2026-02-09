@@ -61,29 +61,58 @@ def get_packing_options(products: dict, model: str) -> list[dict]:
     return products.get(model, [])
 
 
-def calculate_shipment(packing_option: dict, quantity_sets: int) -> dict:
+def calculate_shipment(options: list[dict], quantity_sets: int) -> dict:
     """
-    計算箱數和總重量
+    自動計算最佳裝箱方式：先用最大箱裝滿，剩餘用對應的小箱
 
     Args:
-        packing_option: {"sets_per_carton": 3, "weight_kg": 9.33}
+        options: [{"sets_per_carton": 1, "weight_kg": 3.95}, ...] 該型號所有包裝規格
         quantity_sets: 業務輸入的組數
 
     Returns:
-        {"num_cartons": 10, "total_weight_kg": 93.3}
+        {
+            "num_cartons": 2,
+            "total_weight_kg": 23.04,
+            "breakdown": [
+                {"sets_per_carton": 4, "weight_kg": 15.3, "count": 1},
+                {"sets_per_carton": 2, "weight_kg": 7.74, "count": 1},
+            ]
+        }
     """
-    sets_per_carton = packing_option["sets_per_carton"]
-    weight_per_carton = packing_option["weight_kg"]
+    # 建立 sets → weight 對照表，依 sets 由大到小排序
+    opts_sorted = sorted(options, key=lambda o: o["sets_per_carton"], reverse=True)
+    sets_to_weight = {o["sets_per_carton"]: o["weight_kg"] for o in opts_sorted}
 
-    num_cartons = math.ceil(quantity_sets / sets_per_carton)
-    total_weight = round(num_cartons * weight_per_carton, 2)
+    remaining = quantity_sets
+    breakdown = []  # [{sets_per_carton, weight_kg, count}]
+
+    for opt in opts_sorted:
+        s = opt["sets_per_carton"]
+        if s <= 0 or remaining <= 0:
+            continue
+        count = remaining // s
+        if count > 0:
+            breakdown.append({
+                "sets_per_carton": s,
+                "weight_kg": opt["weight_kg"],
+                "count": count,
+            })
+            remaining -= count * s
+
+    # 若仍有剩餘（沒有剛好整除的箱規），用最小箱裝
+    if remaining > 0 and opts_sorted:
+        smallest = opts_sorted[-1]  # sets 最小的選項
+        breakdown.append({
+            "sets_per_carton": smallest["sets_per_carton"],
+            "weight_kg": smallest["weight_kg"],
+            "count": math.ceil(remaining / smallest["sets_per_carton"]),
+        })
+
+    num_cartons = sum(b["count"] for b in breakdown)
+    total_weight = round(sum(b["weight_kg"] * b["count"] for b in breakdown), 2)
 
     return {
         "num_cartons": num_cartons,
         "total_weight_kg": total_weight,
+        "breakdown": breakdown,
     }
-
-
-def format_packing_label(option: dict) -> str:
-    """格式化包裝規格顯示文字"""
-    return f"{option['sets_per_carton']} sets/箱, 每箱 {option['weight_kg']} kg"

@@ -4,7 +4,6 @@ from services.product_data import (
     get_product_models,
     get_packing_options,
     calculate_shipment,
-    format_packing_label,
 )
 from services.fedex_api import get_rate_quote, parse_rate_response
 from services.history import save_quote
@@ -58,7 +57,7 @@ def _parse_us_address(text: str) -> dict:
     return result
 
 
-def _clear_old_results_if_changed(model, quantity_sets, packing_label, dest_zip, dest_state):
+def _clear_old_results_if_changed(model, quantity_sets, dest_zip, dest_state):
     """當輸入條件改變時，自動清除舊的報價結果"""
     if "last_query" not in st.session_state:
         return
@@ -66,7 +65,6 @@ def _clear_old_results_if_changed(model, quantity_sets, packing_label, dest_zip,
     if (
         q["model"] != model
         or q["quantity_sets"] != quantity_sets
-        or q["packing_label"] != packing_label
         or q["dest_zip"] != dest_zip
         or q["dest_state"] != dest_state
     ):
@@ -134,34 +132,22 @@ def render_quote_page(products: dict):
         st.info("請選擇產品型號 Please select a product model")
         return
 
-    # Packing options
+    # Auto-calculate packing
     options = get_packing_options(products, model)
     if options:
-        option_labels = [format_packing_label(opt) for opt in options]
-
-        # 預填包裝規格
-        packing_default = 0
-        if prefill and prefill.get("packing_config"):
-            for i, label in enumerate(option_labels):
-                if label == prefill["packing_config"]:
-                    packing_default = i
-                    break
-
-        selected_idx = st.selectbox(
-            "包裝規格 Packing Spec",
-            range(len(option_labels)),
-            index=packing_default,
-            format_func=lambda i: option_labels[i],
-            key="packing_select",
-        )
-        selected_packing = options[selected_idx]
-
-        # Calculate shipment
-        shipment = calculate_shipment(selected_packing, quantity_sets)
+        shipment = calculate_shipment(options, quantity_sets)
 
         col_a, col_b = st.columns(2)
         col_a.metric("箱數 Cartons", f"{shipment['num_cartons']} 箱 ctns")
         col_b.metric("總重量 Total Weight", f"{shipment['total_weight_kg']} kg")
+
+        # 顯示裝箱明細
+        breakdown_parts = []
+        for b in shipment["breakdown"]:
+            breakdown_parts.append(
+                f"{b['count']} 箱 x {b['sets_per_carton']}sets ({b['weight_kg']}kg)"
+            )
+        st.caption("裝箱明細 Packing: " + " + ".join(breakdown_parts))
     else:
         st.warning("此型號無包裝資料 No packing data for this model")
         return
@@ -241,9 +227,7 @@ def render_quote_page(products: dict):
     st.divider()
 
     # ── 當輸入改變時，自動清除舊報價結果 ──
-    _clear_old_results_if_changed(
-        model, quantity_sets, option_labels[selected_idx], dest_zip, dest_state
-    )
+    _clear_old_results_if_changed(model, quantity_sets, dest_zip, dest_state)
 
     # ── Query Button ──
     # Get account number from sidebar
@@ -285,7 +269,6 @@ def render_quote_page(products: dict):
                 st.session_state["last_rates"] = rates
                 st.session_state["last_query"] = {
                     "model": model,
-                    "packing_label": option_labels[selected_idx],
                     "quantity_sets": quantity_sets,
                     "shipment": shipment,
                     "dest_state": dest_state,
@@ -345,10 +328,15 @@ def render_quote_page(products: dict):
                     f"儲存此報價 Save Quote",
                     key=f"save_{i}_{rate['service_type']}",
                 ):
+                    # 裝箱明細字串
+                    packing_desc = " + ".join(
+                        f"{b['count']}x{b['sets_per_carton']}sets"
+                        for b in query["shipment"]["breakdown"]
+                    )
                     save_quote(
                         {
                             "product_model": query["model"],
-                            "packing_config": query["packing_label"],
+                            "packing_config": packing_desc,
                             "quantity_sets": query["quantity_sets"],
                             "num_cartons": query["shipment"]["num_cartons"],
                             "total_weight_kg": query["shipment"]["total_weight_kg"],
