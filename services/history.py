@@ -1,7 +1,9 @@
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 import config
+
+TZ_TAIPEI = timezone(timedelta(hours=8))
 
 
 COLUMNS = [
@@ -67,7 +69,7 @@ def _cleanup_old_records_sheet(ws):
     if len(all_values) <= 1:
         return  # 只有標題或空表
 
-    cutoff = datetime.now() - timedelta(days=90)
+    cutoff = datetime.now(TZ_TAIPEI) - timedelta(days=90)
     rows_to_delete = []
 
     for i, row in enumerate(all_values[1:], start=2):  # 從第2列開始（跳過標題）
@@ -88,7 +90,7 @@ def save_quote(quote_data: dict):
     ws = _get_history_worksheet()
     _ensure_header(ws)
 
-    quote_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    quote_data["timestamp"] = datetime.now(TZ_TAIPEI).strftime("%Y-%m-%d %H:%M:%S")
 
     # 按 COLUMNS 順序組成一列，插入第 2 列（標題下方），最新紀錄在最上面
     row = [str(quote_data.get(col, "")) for col in COLUMNS]
