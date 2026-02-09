@@ -76,21 +76,16 @@ def get_rate_quote(
         "X-locale": "en_US",
     }
 
-    # Build recipient address
+    # Build recipient address — always include all fields for FedEx
     recipient_address = {
         "countryCode": "US",
         "residential": False,
+        "postalCode": destination.get("postal_code") or "",
+        "stateOrProvinceCode": destination.get("state_code") or "",
+        "city": destination.get("city") or "",
     }
-    if destination.get("postal_code"):
-        recipient_address["postalCode"] = destination["postal_code"]
-    if destination.get("state_code"):
-        recipient_address["stateOrProvinceCode"] = destination["state_code"]
-    if destination.get("city"):
-        recipient_address["city"] = destination["city"]
-    street_lines = []
-    if destination.get("street"):
-        street_lines.append(destination["street"])
-    recipient_address["streetLines"] = street_lines if street_lines else [""]
+    street = destination.get("street") or ""
+    recipient_address["streetLines"] = [street] if street else [""]
 
     # Weight per package
     weight_per_pkg = round(total_weight_kg / num_packages, 2)

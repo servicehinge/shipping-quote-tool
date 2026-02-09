@@ -29,6 +29,9 @@ def _parse_us_address(text: str) -> dict:
     if not text:
         return result
 
+    # 0. Remove country name (USA, US, United States, etc.)
+    text = re.sub(r"\b(United\s+States|USA|U\.S\.A\.?|US)\b", "", text, flags=re.IGNORECASE)
+
     # 1. Extract ZIP code (5 digits, optionally -4 digits)
     zip_match = re.search(r"\b(\d{5})(?:-\d{4})?\b", text)
     if zip_match:
@@ -43,12 +46,11 @@ def _parse_us_address(text: str) -> dict:
             break
 
     # 3. Clean up remaining text → split into street and city
-    # Remove extra commas, spaces, dots
     text = re.sub(r"[,.\n]+", ",", text)
     parts = [p.strip() for p in text.split(",") if p.strip()]
 
     if len(parts) >= 2:
-        # Last non-empty part = city, rest = street
+        # First part = street, last part = city
         result["city"] = parts[-1]
         result["street"] = ", ".join(parts[:-1])
     elif len(parts) == 1:
