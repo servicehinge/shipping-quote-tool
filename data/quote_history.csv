@@ -1,2 +1,3 @@
 timestamp,product_model,packing_config,quantity_sets,num_cartons,total_weight_kg,destination_state,destination_zip,service_type,service_name,shipping_cost_ntd,exchange_rate,usd_cost,markup_percent,quoted_price_usd,cost_per_kg_ntd
 2026-02-06 16:09:54,K51M-450-X3,"1 sets/箱, 每箱 3.2 kg",1,1,3.2,,49423,FEDEX_INTERNATIONAL_CONNECT_PLUS,FedEx International Connect Plus,1720.0,30.0,57.33,15.0,65.93,537.5
+2026-02-06 17:28:55,K51M-450-X2,"1 sets/箱, 每箱 2.3 kg",1,1,2.3,,49423,FEDEX_INTERNATIONAL_CONNECT_PLUS,FedEx International Connect Plus,1528.0,30.0,50.93,15.0,58.57,664.35

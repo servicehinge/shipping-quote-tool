@@ -7,8 +7,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import config
 from services.product_data import load_products
-from pages.quote import render_quote_page
-from pages.history_page import render_history_page
+from views.quote import render_quote_page
+from views.history_page import render_history_page
 
 st.set_page_config(
     page_title="運費報價系統 Shipping Quote",
