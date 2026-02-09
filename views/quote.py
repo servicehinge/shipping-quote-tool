@@ -1,3 +1,4 @@
+import re
 import streamlit as st
 from services.product_data import (
     get_product_models,
@@ -11,6 +12,50 @@ import config
 
 PRODUCT_DATA_URL = "https://docs.google.com/spreadsheets/d/1Bkbj1Iyi-CsSRCEABGlRmxJuvANmQuh41_4uVnHHoo0/edit?gid=214800878#gid=214800878"
 WEIGHT_DATA_URL = "https://docs.google.com/spreadsheets/d/1Bkbj1Iyi-CsSRCEABGlRmxJuvANmQuh41_4uVnHHoo0/edit?gid=510415783#gid=510415783"
+
+
+US_STATES = {
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+    "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+    "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+    "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+    "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC",
+}
+
+
+def _parse_us_address(text: str) -> dict:
+    """解析美國地址，回傳 {zip, state, city, street}"""
+    result = {"zip": "", "state": "", "city": "", "street": ""}
+    text = text.strip()
+    if not text:
+        return result
+
+    # 1. Extract ZIP code (5 digits, optionally -4 digits)
+    zip_match = re.search(r"\b(\d{5})(?:-\d{4})?\b", text)
+    if zip_match:
+        result["zip"] = zip_match.group(1)
+        text = text[:zip_match.start()] + text[zip_match.end():]
+
+    # 2. Extract state code (2-letter, case insensitive)
+    for token in re.findall(r"\b([A-Za-z]{2})\b", text):
+        if token.upper() in US_STATES:
+            result["state"] = token.upper()
+            text = re.sub(r"\b" + re.escape(token) + r"\b", "", text, count=1)
+            break
+
+    # 3. Clean up remaining text → split into street and city
+    # Remove extra commas, spaces, dots
+    text = re.sub(r"[,.\n]+", ",", text)
+    parts = [p.strip() for p in text.split(",") if p.strip()]
+
+    if len(parts) >= 2:
+        # Last non-empty part = city, rest = street
+        result["city"] = parts[-1]
+        result["street"] = ", ".join(parts[:-1])
+    elif len(parts) == 1:
+        result["city"] = parts[0]
+
+    return result
 
 
 def _clear_old_results_if_changed(model, quantity_sets, packing_label, dest_zip, dest_state):
@@ -125,25 +170,51 @@ def render_quote_page(products: dict):
 
     # ── 2. 美國目的地 US Destination ──
     st.subheader("2. 美國目的地 US Destination")
-    col1, col2 = st.columns(2)
-    with col1:
+
+    addr_mode = st.radio(
+        "輸入方式 Input Method",
+        ["ZIP Code", "貼上完整地址 Paste Full Address"],
+        horizontal=True,
+        key="addr_mode",
+    )
+
+    dest_zip = ""
+    dest_state = ""
+    dest_city = ""
+    dest_street = ""
+
+    if addr_mode == "ZIP Code":
         dest_zip = st.text_input(
             "郵遞區號 ZIP Code",
             value=prefill["dest_zip"] if prefill else "",
             placeholder="90001",
         )
-    with col2:
-        dest_state = st.text_input(
-            "州別 State（選填 Optional）",
-            value=prefill["dest_state"] if prefill else "",
-            placeholder="CA",
+    else:
+        full_addr = st.text_area(
+            "貼上地址 Paste Address",
+            height=80,
+            placeholder="例 Example: 1234 Main St, Los Angeles, CA 90001",
         )
-
-    col3, col4 = st.columns(2)
-    with col3:
-        dest_city = st.text_input("城市 City（選填 Optional）", placeholder="Los Angeles")
-    with col4:
-        dest_street = st.text_input("街道地址 Street（選填 Optional）", placeholder="")
+        if full_addr.strip():
+            parsed = _parse_us_address(full_addr)
+            dest_zip = parsed["zip"]
+            dest_state = parsed["state"]
+            dest_city = parsed["city"]
+            dest_street = parsed["street"]
+            # 顯示解析結果
+            parts = []
+            if dest_street:
+                parts.append(f"Street: {dest_street}")
+            if dest_city:
+                parts.append(f"City: {dest_city}")
+            if dest_state:
+                parts.append(f"State: {dest_state}")
+            if dest_zip:
+                parts.append(f"ZIP: {dest_zip}")
+            if parts:
+                st.caption("解析結果 Parsed: " + " / ".join(parts))
+            else:
+                st.caption("無法解析地址 Could not parse address")
 
     st.divider()
 
@@ -184,7 +255,10 @@ def render_quote_page(products: dict):
             st.error("請在左側欄輸入 FedEx 帳號號碼（9位數）\nPlease enter FedEx Account No. (9 digits) in the sidebar")
             return
         if not dest_zip and not (dest_city and dest_state):
-            st.error("請至少輸入 ZIP Code 或 City + State\nPlease enter at least ZIP Code or City + State")
+            if addr_mode == "ZIP Code":
+                st.error("請輸入 ZIP Code\nPlease enter a ZIP Code")
+            else:
+                st.error("無法從地址解析出 ZIP 或 City + State，請檢查地址格式\nCould not parse ZIP or City + State from the address")
             return
 
         destination = {
