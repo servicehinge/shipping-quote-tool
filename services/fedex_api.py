@@ -7,6 +7,22 @@ import config
 _token_cache = {"token": None, "expires_at": None}
 
 
+def lookup_zip_code(city: str, state: str) -> str:
+    """用免費 API 從 City + State 查詢 ZIP Code（取第一筆）"""
+    if not city or not state:
+        return ""
+    try:
+        url = f"https://api.zippopotam.us/us/{state}/{city}"
+        resp = requests.get(url, timeout=10)
+        if resp.status_code == 200:
+            places = resp.json().get("places", [])
+            if places:
+                return places[0]["post code"]
+    except Exception:
+        pass
+    return ""
+
+
 def get_oauth_token(account_number=None, force_refresh=False) -> str:
     """
     取得 FedEx OAuth access token（自動快取 55 分鐘）
@@ -76,11 +92,16 @@ def get_rate_quote(
         "X-locale": "en_US",
     }
 
-    # Build recipient address — always include all fields for FedEx
+    # Auto-lookup ZIP if missing but city + state available
+    postal_code = destination.get("postal_code") or ""
+    if not postal_code and destination.get("city") and destination.get("state_code"):
+        postal_code = lookup_zip_code(destination["city"], destination["state_code"])
+
+    # Build recipient address
     recipient_address = {
         "countryCode": "US",
         "residential": False,
-        "postalCode": destination.get("postal_code") or "",
+        "postalCode": postal_code,
         "stateOrProvinceCode": destination.get("state_code") or "",
         "city": destination.get("city") or "",
     }
