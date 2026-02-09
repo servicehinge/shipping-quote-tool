@@ -9,6 +9,24 @@ from services.fedex_api import get_rate_quote, parse_rate_response
 from services.history import save_quote
 import config
 
+PRODUCT_DATA_URL = "https://docs.google.com/spreadsheets/d/1Bkbj1Iyi-CsSRCEABGlRmxJuvANmQuh41_4uVnHHoo0/edit?gid=214800878#gid=214800878"
+
+
+def _clear_old_results_if_changed(model, quantity_sets, packing_label, dest_zip, dest_state):
+    """當輸入條件改變時，自動清除舊的報價結果"""
+    if "last_query" not in st.session_state:
+        return
+    q = st.session_state["last_query"]
+    if (
+        q["model"] != model
+        or q["quantity_sets"] != quantity_sets
+        or q["packing_label"] != packing_label
+        or q["dest_zip"] != dest_zip
+        or q["dest_state"] != dest_state
+    ):
+        st.session_state.pop("last_rates", None)
+        st.session_state.pop("last_query", None)
+
 
 def render_quote_page(products: dict):
     st.header("國際運費報價 International Shipping Quote")
@@ -19,7 +37,16 @@ def render_quote_page(products: dict):
         st.info("已從歷史紀錄帶入資料，請修改後重新查詢。\nData loaded from history. Please modify and re-query.")
 
     # ── 1. 產品 & 數量 Product & Quantity ──
-    st.subheader("1. 產品 & 數量 Product & Quantity")
+    col_header, col_link = st.columns([3, 1])
+    with col_header:
+        st.subheader("1. 產品 & 數量 Product & Quantity")
+    with col_link:
+        st.markdown(
+            f'<a href="{PRODUCT_DATA_URL}" target="_blank">'
+            f'<button style="margin-top:18px;padding:4px 12px;border:1px solid #ccc;border-radius:4px;background:#f0f2f6;cursor:pointer;">'
+            f'編輯產品資料 Edit Products</button></a>',
+            unsafe_allow_html=True,
+        )
 
     # 常用快選型號（排在下拉選單最前面）
     QUICK_MODELS = [
@@ -133,6 +160,11 @@ def render_quote_page(products: dict):
         )
 
     st.divider()
+
+    # ── 當輸入改變時，自動清除舊報價結果 ──
+    _clear_old_results_if_changed(
+        model, quantity_sets, option_labels[selected_idx], dest_zip, dest_state
+    )
 
     # ── Query Button ──
     # Get account number from sidebar
