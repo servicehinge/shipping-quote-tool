@@ -90,9 +90,9 @@ def save_quote(quote_data: dict):
 
     quote_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # 按 COLUMNS 順序組成一列
+    # 按 COLUMNS 順序組成一列，插入第 2 列（標題下方），最新紀錄在最上面
     row = [str(quote_data.get(col, "")) for col in COLUMNS]
-    ws.append_row(row, value_input_option="USER_ENTERED")
+    ws.insert_row(row, index=2, value_input_option="USER_ENTERED")
 
 
 def load_history() -> pd.DataFrame:
