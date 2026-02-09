@@ -34,11 +34,34 @@ def render_history_page():
         st.info("篩選條件下無紀錄")
         return
 
-    # Rename columns for display
-    display_df = filtered.rename(columns=COLUMN_LABELS)
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+    # 顯示每筆紀錄，附帶「編輯」按鈕
+    st.subheader(f"共 {len(filtered)} 筆紀錄")
+
+    for idx, row in filtered.iterrows():
+        with st.container(border=True):
+            c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
+            c1.markdown(f"**{row['product_model']}** — {row.get('packing_config', '')}")
+            c2.markdown(f"{row.get('quantity_sets', '')} sets → {row.get('destination_state', '')} {row.get('destination_zip', '')}")
+            c3.markdown(f"**US$ {row.get('quoted_price_usd', 0):,.2f}** ({row.get('service_name', '')})")
+
+            with c4:
+                if st.button("編輯", key=f"edit_{idx}"):
+                    st.session_state["prefill"] = {
+                        "model": str(row.get("product_model", "")),
+                        "packing_config": str(row.get("packing_config", "")),
+                        "quantity_sets": int(row.get("quantity_sets", 1)) if pd.notna(row.get("quantity_sets")) else 1,
+                        "dest_zip": str(row.get("destination_zip", "")),
+                        "dest_state": str(row.get("destination_state", "")),
+                        "exchange_rate": float(row.get("exchange_rate", 30)) if pd.notna(row.get("exchange_rate")) else 30.0,
+                        "markup_percent": float(row.get("markup_percent", 15)) if pd.notna(row.get("markup_percent")) else 15.0,
+                    }
+                    st.session_state["nav_page"] = "運費報價"
+                    st.rerun()
+
+            st.caption(f"{row.get('timestamp', '')} | {row.get('service_type', '')} | NT$ {row.get('shipping_cost_ntd', 0):,.0f} | 匯率 {row.get('exchange_rate', '')} | 加成 {row.get('markup_percent', '')}%")
 
     # ── Summary ──
+    st.divider()
     st.subheader("統計摘要")
     col1, col2, col3 = st.columns(3)
     col1.metric("紀錄筆數", len(filtered))

@@ -1,4 +1,3 @@
-import os
 import pandas as pd
 from datetime import datetime, timedelta
 from io import BytesIO
@@ -43,49 +42,97 @@ COLUMN_LABELS = {
     "cost_per_kg_ntd": "每KG成本(NT$)",
 }
 
-
-def _ensure_csv():
-    """確保 CSV 檔案存在"""
-    os.makedirs(os.path.dirname(config.HISTORY_CSV), exist_ok=True)
-    if not os.path.exists(config.HISTORY_CSV):
-        df = pd.DataFrame(columns=COLUMNS)
-        df.to_csv(config.HISTORY_CSV, index=False)
+# Google Sheets 標題列（與 COLUMNS 對應的中文）
+SHEET_HEADER = [COLUMN_LABELS.get(c, c) for c in COLUMNS]
 
 
-def _cleanup_old_records(df: pd.DataFrame) -> pd.DataFrame:
-    """移除超過 3 個月的紀錄"""
-    if df.empty:
-        return df
+def _get_history_worksheet():
+    """取得 Google Sheets 報價紀錄工作表"""
+    from services.google_sheets import get_or_create_worksheet
+
+    ws = get_or_create_worksheet(config.SHEET_NAME_HISTORY)
+    return ws
+
+
+def _ensure_header(ws):
+    """確保工作表有標題列"""
+    first_row = ws.row_values(1)
+    if not first_row or first_row[0] != SHEET_HEADER[0]:
+        ws.update([SHEET_HEADER], value_input_option="USER_ENTERED")
+
+
+def _cleanup_old_records_sheet(ws):
+    """移除 Google Sheets 上超過 3 個月的紀錄"""
+    all_values = ws.get_all_values()
+    if len(all_values) <= 1:
+        return  # 只有標題或空表
+
     cutoff = datetime.now() - timedelta(days=90)
-    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-    return df[df["timestamp"] >= cutoff].copy()
+    rows_to_delete = []
+
+    for i, row in enumerate(all_values[1:], start=2):  # 從第2列開始（跳過標題）
+        try:
+            ts = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
+            if ts < cutoff:
+                rows_to_delete.append(i)
+        except (ValueError, IndexError):
+            continue
+
+    # 從最後一列開始刪（避免列號位移）
+    for row_idx in reversed(rows_to_delete):
+        ws.delete_rows(row_idx)
 
 
 def save_quote(quote_data: dict):
-    """儲存一筆報價紀錄"""
-    _ensure_csv()
-    df = pd.read_csv(config.HISTORY_CSV)
-    df = _cleanup_old_records(df)
+    """儲存一筆報價紀錄到 Google Sheets"""
+    ws = _get_history_worksheet()
+    _ensure_header(ws)
 
     quote_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    new_row = pd.DataFrame([quote_data])
-    df = pd.concat([df, new_row], ignore_index=True)
-    df.to_csv(config.HISTORY_CSV, index=False)
+
+    # 按 COLUMNS 順序組成一列
+    row = [str(quote_data.get(col, "")) for col in COLUMNS]
+    ws.append_row(row, value_input_option="USER_ENTERED")
 
 
 def load_history() -> pd.DataFrame:
-    """載入歷史紀錄（自動清除超過 3 個月的資料）"""
-    _ensure_csv()
-    df = pd.read_csv(config.HISTORY_CSV)
-    df = _cleanup_old_records(df)
-    # Save cleaned data back
-    df.to_csv(config.HISTORY_CSV, index=False)
-    return df
+    """從 Google Sheets 載入歷史紀錄（自動清除超過 3 個月的資料）"""
+    ws = _get_history_worksheet()
+    _ensure_header(ws)
+
+    # 清除過期紀錄
+    _cleanup_old_records_sheet(ws)
+
+    # 讀取所有資料
+    records = ws.get_all_records()
+    if not records:
+        return pd.DataFrame(columns=COLUMNS)
+
+    df = pd.DataFrame(records)
+
+    # 將中文欄名對應回英文欄名
+    reverse_labels = {v: k for k, v in COLUMN_LABELS.items()}
+    df = df.rename(columns=reverse_labels)
+
+    # 確保所有必要欄位存在
+    for col in COLUMNS:
+        if col not in df.columns:
+            df[col] = ""
+
+    # 轉換數字欄位
+    numeric_cols = [
+        "quantity_sets", "num_cartons", "total_weight_kg",
+        "shipping_cost_ntd", "exchange_rate", "usd_cost",
+        "markup_percent", "quoted_price_usd", "cost_per_kg_ntd",
+    ]
+    for col in numeric_cols:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    return df[COLUMNS]
 
 
 def export_history_excel(df: pd.DataFrame) -> bytes:
     """將 DataFrame 匯出為 Excel bytes"""
-    # Rename columns to Chinese labels
     df_export = df.rename(columns=COLUMN_LABELS)
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:

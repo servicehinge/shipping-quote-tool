@@ -13,6 +13,11 @@ import config
 def render_quote_page(products: dict):
     st.header("K51 國際運費報價")
 
+    # ── 檢查是否有預填資料（從歷史紀錄「編輯」按鈕帶入）──
+    prefill = st.session_state.pop("prefill", None)
+    if prefill:
+        st.info("已從歷史紀錄帶入資料，請修改後重新查詢。")
+
     # ── 1. 產品 & 數量 ──
     st.subheader("1. 產品 & 數量")
 
@@ -25,11 +30,25 @@ def render_quote_page(products: dict):
     other_models = [m for m in all_models if m not in QUICK_MODELS]
     models = QUICK_MODELS + other_models
 
+    # 預填產品型號
+    model_default = None
+    if prefill and prefill.get("model") in models:
+        model_default = models.index(prefill["model"])
+
     col1, col2 = st.columns(2)
     with col1:
-        model = st.selectbox("產品型號", models, index=None, placeholder="請選擇產品型號", key="model_select")
+        model = st.selectbox(
+            "產品型號", models,
+            index=model_default,
+            placeholder="請選擇產品型號",
+            key="model_select",
+        )
     with col2:
-        quantity_sets = st.number_input("數量 (sets)", min_value=1, value=1, step=1)
+        quantity_sets = st.number_input(
+            "數量 (sets)", min_value=1,
+            value=prefill["quantity_sets"] if prefill else 1,
+            step=1,
+        )
 
     if model is None:
         st.info("請選擇產品型號")
@@ -39,9 +58,19 @@ def render_quote_page(products: dict):
     options = get_packing_options(products, model)
     if options:
         option_labels = [format_packing_label(opt) for opt in options]
+
+        # 預填包裝規格
+        packing_default = 0
+        if prefill and prefill.get("packing_config"):
+            for i, label in enumerate(option_labels):
+                if label == prefill["packing_config"]:
+                    packing_default = i
+                    break
+
         selected_idx = st.selectbox(
             "包裝規格",
             range(len(option_labels)),
+            index=packing_default,
             format_func=lambda i: option_labels[i],
             key="packing_select",
         )
@@ -63,9 +92,17 @@ def render_quote_page(products: dict):
     st.subheader("2. 美國目的地")
     col1, col2 = st.columns(2)
     with col1:
-        dest_zip = st.text_input("ZIP Code", placeholder="90001")
+        dest_zip = st.text_input(
+            "ZIP Code",
+            value=prefill["dest_zip"] if prefill else "",
+            placeholder="90001",
+        )
     with col2:
-        dest_state = st.text_input("State（選填）", placeholder="CA")
+        dest_state = st.text_input(
+            "State（選填）",
+            value=prefill["dest_state"] if prefill else "",
+            placeholder="CA",
+        )
 
     col3, col4 = st.columns(2)
     with col3:
@@ -81,7 +118,7 @@ def render_quote_page(products: dict):
     with col1:
         exchange_rate = st.number_input(
             "匯率 (NTD/USD)",
-            value=float(config.DEFAULT_EXCHANGE_RATE),
+            value=prefill["exchange_rate"] if prefill else float(config.DEFAULT_EXCHANGE_RATE),
             min_value=1.0,
             step=0.5,
             format="%.1f",
@@ -89,7 +126,7 @@ def render_quote_page(products: dict):
     with col2:
         markup_percent = st.number_input(
             "加成 (%)",
-            value=float(config.DEFAULT_MARKUP_PERCENT),
+            value=prefill["markup_percent"] if prefill else float(config.DEFAULT_MARKUP_PERCENT),
             min_value=0.0,
             step=1.0,
             format="%.1f",

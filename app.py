@@ -21,8 +21,14 @@ with st.sidebar:
     st.title("K51 運費報價系統")
     st.divider()
 
-    # Navigation
-    page = st.radio("頁面", ["運費報價", "歷史紀錄"], label_visibility="collapsed")
+    # Navigation — 支援從歷史紀錄頁跳轉回報價頁
+    nav_options = ["運費報價", "歷史紀錄"]
+    nav_default = 0
+    if "nav_page" in st.session_state:
+        target = st.session_state.pop("nav_page")
+        if target in nav_options:
+            nav_default = nav_options.index(target)
+    page = st.radio("頁面", nav_options, index=nav_default, label_visibility="collapsed")
 
     st.divider()
     st.subheader("FedEx 設定")
@@ -43,14 +49,14 @@ with st.sidebar:
         st.caption("🟢 正式環境 (Production)")
 
 # ── Load product data ──
-@st.cache_data
+@st.cache_data(ttl=600)
 def cached_load_products():
     return load_products()
 
 try:
     products = cached_load_products()
-except FileNotFoundError:
-    st.error("找不到 products.json，請先執行: python scripts/extract_data.py")
+except Exception as e:
+    st.error(f"載入產品資料失敗: {e}")
     st.stop()
 
 # ── Render page ──
