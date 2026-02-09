@@ -11,15 +11,15 @@ import config
 
 
 def render_quote_page(products: dict):
-    st.header("K51 國際運費報價")
+    st.header("國際運費報價 International Shipping Quote")
 
     # ── 檢查是否有預填資料（從歷史紀錄「編輯」按鈕帶入）──
     prefill = st.session_state.pop("prefill", None)
     if prefill:
-        st.info("已從歷史紀錄帶入資料，請修改後重新查詢。")
+        st.info("已從歷史紀錄帶入資料，請修改後重新查詢。\nData loaded from history. Please modify and re-query.")
 
-    # ── 1. 產品 & 數量 ──
-    st.subheader("1. 產品 & 數量")
+    # ── 1. 產品 & 數量 Product & Quantity ──
+    st.subheader("1. 產品 & 數量 Product & Quantity")
 
     # 常用快選型號（排在下拉選單最前面）
     QUICK_MODELS = [
@@ -38,20 +38,20 @@ def render_quote_page(products: dict):
     col1, col2 = st.columns(2)
     with col1:
         model = st.selectbox(
-            "產品型號", models,
+            "產品型號 Product Model", models,
             index=model_default,
-            placeholder="請選擇產品型號",
+            placeholder="請選擇產品型號 Select a model",
             key="model_select",
         )
     with col2:
         quantity_sets = st.number_input(
-            "數量 (sets)", min_value=1,
+            "數量 Quantity (sets)", min_value=1,
             value=prefill["quantity_sets"] if prefill else 1,
             step=1,
         )
 
     if model is None:
-        st.info("請選擇產品型號")
+        st.info("請選擇產品型號 Please select a product model")
         return
 
     # Packing options
@@ -68,7 +68,7 @@ def render_quote_page(products: dict):
                     break
 
         selected_idx = st.selectbox(
-            "包裝規格",
+            "包裝規格 Packing Spec",
             range(len(option_labels)),
             index=packing_default,
             format_func=lambda i: option_labels[i],
@@ -80,44 +80,44 @@ def render_quote_page(products: dict):
         shipment = calculate_shipment(selected_packing, quantity_sets)
 
         col_a, col_b = st.columns(2)
-        col_a.metric("箱數", f"{shipment['num_cartons']} 箱")
-        col_b.metric("總重量", f"{shipment['total_weight_kg']} kg")
+        col_a.metric("箱數 Cartons", f"{shipment['num_cartons']} 箱 ctns")
+        col_b.metric("總重量 Total Weight", f"{shipment['total_weight_kg']} kg")
     else:
-        st.warning("此型號無包裝資料")
+        st.warning("此型號無包裝資料 No packing data for this model")
         return
 
     st.divider()
 
-    # ── 2. 美國目的地 ──
-    st.subheader("2. 美國目的地")
+    # ── 2. 美國目的地 US Destination ──
+    st.subheader("2. 美國目的地 US Destination")
     col1, col2 = st.columns(2)
     with col1:
         dest_zip = st.text_input(
-            "ZIP Code",
+            "郵遞區號 ZIP Code",
             value=prefill["dest_zip"] if prefill else "",
             placeholder="90001",
         )
     with col2:
         dest_state = st.text_input(
-            "State（選填）",
+            "州別 State（選填 Optional）",
             value=prefill["dest_state"] if prefill else "",
             placeholder="CA",
         )
 
     col3, col4 = st.columns(2)
     with col3:
-        dest_city = st.text_input("City（選填）", placeholder="Los Angeles")
+        dest_city = st.text_input("城市 City（選填 Optional）", placeholder="Los Angeles")
     with col4:
-        dest_street = st.text_input("街道地址（選填）", placeholder="")
+        dest_street = st.text_input("街道地址 Street（選填 Optional）", placeholder="")
 
     st.divider()
 
-    # ── 3. 報價設定 ──
-    st.subheader("3. 報價設定")
+    # ── 3. 報價設定 Quote Settings ──
+    st.subheader("3. 報價設定 Quote Settings")
     col1, col2 = st.columns(2)
     with col1:
         exchange_rate = st.number_input(
-            "匯率 (NTD/USD)",
+            "匯率 Exchange Rate (NTD/USD)",
             value=prefill["exchange_rate"] if prefill else float(config.DEFAULT_EXCHANGE_RATE),
             min_value=1.0,
             step=0.5,
@@ -125,7 +125,7 @@ def render_quote_page(products: dict):
         )
     with col2:
         markup_percent = st.number_input(
-            "加成 (%)",
+            "加成 Markup (%)",
             value=prefill["markup_percent"] if prefill else float(config.DEFAULT_MARKUP_PERCENT),
             min_value=0.0,
             step=1.0,
@@ -138,13 +138,13 @@ def render_quote_page(products: dict):
     # Get account number from sidebar
     account_number = st.session_state.get("fedex_account", "")
 
-    if st.button("查詢 FedEx 運費", type="primary", use_container_width=True):
+    if st.button("查詢 FedEx 運費 Get FedEx Rates", type="primary", use_container_width=True):
         # Validation
         if not account_number:
-            st.error("請在左側欄輸入 FedEx 帳號號碼（9位數）")
+            st.error("請在左側欄輸入 FedEx 帳號號碼（9位數）\nPlease enter FedEx Account No. (9 digits) in the sidebar")
             return
         if not dest_zip and not (dest_city and dest_state):
-            st.error("請至少輸入 ZIP Code 或 City + State")
+            st.error("請至少輸入 ZIP Code 或 City + State\nPlease enter at least ZIP Code or City + State")
             return
 
         destination = {
@@ -154,7 +154,7 @@ def render_quote_page(products: dict):
             "street": dest_street,
         }
 
-        with st.spinner("正在查詢 FedEx 運費..."):
+        with st.spinner("正在查詢 FedEx 運費 Fetching FedEx rates..."):
             try:
                 response = get_rate_quote(
                     account_number=account_number,
@@ -165,7 +165,7 @@ def render_quote_page(products: dict):
                 rates = parse_rate_response(response)
 
                 if not rates:
-                    st.warning("FedEx 未回傳任何運費方案，請確認地址是否正確。")
+                    st.warning("FedEx 未回傳任何運費方案，請確認地址是否正確。\nNo rates returned. Please verify the address.")
                     return
 
                 st.session_state["last_rates"] = rates
@@ -182,7 +182,7 @@ def render_quote_page(products: dict):
 
             except Exception as e:
                 error_msg = str(e)
-                st.error(f"查詢失敗: {error_msg}")
+                st.error(f"查詢失敗 Query failed: {error_msg}")
                 if hasattr(e, "response") and e.response is not None:
                     try:
                         detail = e.response.json()
@@ -191,9 +191,9 @@ def render_quote_page(products: dict):
                         st.code(e.response.text[:1000])
                 return
 
-    # ── 4. 運費結果 ──
+    # ── 4. 運費結果 Rate Results ──
     if "last_rates" in st.session_state and "last_query" in st.session_state:
-        st.subheader("4. 運費結果")
+        st.subheader("4. 運費結果 Rate Results")
 
         query = st.session_state["last_query"]
         rates = st.session_state["last_rates"]
@@ -216,19 +216,19 @@ def render_quote_page(products: dict):
                 st.markdown(f"**{rate['service_name']}**")
 
                 c1, c2, c3 = st.columns(3)
-                c1.metric("運費成本", f"NT$ {cost_ntd:,.0f}")
-                c2.metric("美金成本", f"US$ {usd_cost:,.2f}")
+                c1.metric("運費成本 Shipping Cost", f"NT$ {cost_ntd:,.0f}")
+                c2.metric("美金成本 USD Cost", f"US$ {usd_cost:,.2f}")
                 c3.metric(
-                    f"報價金額 (+{current_markup:.0f}%)",
+                    f"報價金額 Quote (+{current_markup:.0f}%)",
                     f"US$ {quoted_usd:,.2f}",
                 )
 
                 c4, c5 = st.columns(2)
-                c4.metric("每KG成本", f"NT$ {cost_per_kg:,.2f}")
-                c5.metric("預計天數", rate["transit_days"])
+                c4.metric("每KG成本 Cost/KG", f"NT$ {cost_per_kg:,.2f}")
+                c5.metric("預計天數 Transit Days", rate["transit_days"])
 
                 if st.button(
-                    f"儲存此報價",
+                    f"儲存此報價 Save Quote",
                     key=f"save_{i}_{rate['service_type']}",
                 ):
                     save_quote(
@@ -250,4 +250,4 @@ def render_quote_page(products: dict):
                             "cost_per_kg_ntd": round(cost_per_kg, 2),
                         }
                     )
-                    st.success("報價已儲存!")
+                    st.success("報價已儲存! Quote saved!")
