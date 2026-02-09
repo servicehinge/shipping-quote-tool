@@ -45,14 +45,14 @@ def render_quote_page(products: dict):
         st.markdown(
             f'<a href="{PRODUCT_DATA_URL}" target="_blank">'
             f'<button style="margin-top:18px;padding:4px 12px;border:1px solid #ccc;border-radius:4px;background:#f0f2f6;cursor:pointer;">'
-            f'編輯產品資料 Edit Products</button></a>',
+            f'重量明細編輯 Edit Weight Data</button></a>',
             unsafe_allow_html=True,
         )
     with col_link2:
         st.markdown(
             f'<a href="{WEIGHT_DATA_URL}" target="_blank">'
             f'<button style="margin-top:18px;padding:4px 12px;border:1px solid #ccc;border-radius:4px;background:#f0f2f6;cursor:pointer;">'
-            f'重量明細 Weight Data</button></a>',
+            f'報價紀錄 Quote Log</button></a>',
             unsafe_allow_html=True,
         )
 
