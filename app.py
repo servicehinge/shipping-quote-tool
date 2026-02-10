@@ -6,7 +6,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import config
-from services.product_data import load_products
+from services.product_data import load_products, sync_products_from_source
 from views.quote import render_quote_page
 from views.history_page import render_history_page
 
@@ -47,6 +47,16 @@ with st.sidebar:
         st.caption("🟡 測試環境 Sandbox")
     else:
         st.caption("🟢 正式環境 Production")
+
+    st.divider()
+    if st.button("同步產品資料 Sync Products", use_container_width=True):
+        with st.spinner("同步中 Syncing..."):
+            try:
+                count = sync_products_from_source()
+                st.success(f"同步完成！{count} 筆資料 Synced!")
+                st.cache_data.clear()
+            except Exception as e:
+                st.error(f"同步失敗 Sync failed: {e}")
 
 # ── Load product data ──
 @st.cache_data(ttl=600)
