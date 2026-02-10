@@ -74,7 +74,7 @@ def _cleanup_old_records_sheet(ws):
 
     for i, row in enumerate(all_values[1:], start=2):  # 從第2列開始（跳過標題）
         try:
-            ts = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
+            ts = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S").replace(tzinfo=TZ_TAIPEI)
             if ts < cutoff:
                 rows_to_delete.append(i)
         except (ValueError, IndexError):
