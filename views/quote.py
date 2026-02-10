@@ -301,7 +301,35 @@ def render_quote_page(products: dict):
         current_exchange = exchange_rate
         current_markup = markup_percent
 
-        for i, rate in enumerate(rates):
+        # Sort rates: Priority Express first, then Priority, then others
+        SERVICE_ORDER = {
+            "FEDEX_INTERNATIONAL_PRIORITY_EXPRESS": 0,
+            "INTERNATIONAL_PRIORITY": 1,
+            "FEDEX_INTERNATIONAL_PRIORITY": 1,
+            "INTERNATIONAL_ECONOMY": 2,
+            "FEDEX_INTERNATIONAL_ECONOMY": 2,
+        }
+        sorted_rates = sorted(
+            rates,
+            key=lambda r: SERVICE_ORDER.get(r["service_type"], 99),
+        )
+
+        # Build cost lookup for comparison
+        cost_by_type = {}
+        for rate in sorted_rates:
+            cost_by_type[rate["service_type"]] = rate["total_charge"]
+
+        # Check Priority vs Economy price difference
+        priority_cost = cost_by_type.get(
+            "FEDEX_INTERNATIONAL_PRIORITY",
+            cost_by_type.get("INTERNATIONAL_PRIORITY"),
+        )
+        economy_cost = cost_by_type.get(
+            "FEDEX_INTERNATIONAL_ECONOMY",
+            cost_by_type.get("INTERNATIONAL_ECONOMY"),
+        )
+
+        for i, rate in enumerate(sorted_rates):
             cost_ntd = rate["total_charge"]
             usd_cost = cost_ntd / current_exchange if current_exchange > 0 else 0
             quoted_usd = usd_cost * (1 + current_markup / 100)
@@ -311,8 +339,38 @@ def render_quote_page(products: dict):
                 else 0
             )
 
+            stype = rate["service_type"]
+            is_priority_express = stype == "FEDEX_INTERNATIONAL_PRIORITY_EXPRESS"
+            is_priority = stype in ("INTERNATIONAL_PRIORITY", "FEDEX_INTERNATIONAL_PRIORITY")
+            is_economy = stype in ("INTERNATIONAL_ECONOMY", "FEDEX_INTERNATIONAL_ECONOMY")
+
             with st.container(border=True):
-                st.markdown(f"**{rate['service_name']}**")
+                # Service name with label
+                if is_priority_express:
+                    st.markdown(
+                        f"**{rate['service_name']}**　"
+                        f'<span style="background:#FF6B35;color:white;padding:2px 8px;border-radius:4px;font-size:0.85em;">'
+                        f'業務報價專用</span>',
+                        unsafe_allow_html=True,
+                    )
+                elif is_priority:
+                    st.markdown(
+                        f"**{rate['service_name']}**　"
+                        f'<span style="background:#2196F3;color:white;padding:2px 8px;border-radius:4px;font-size:0.85em;">'
+                        f'一般正式出貨使用</span>',
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(f"**{rate['service_name']}**")
+
+                # Priority vs Economy recommendation
+                if is_economy and priority_cost is not None and economy_cost is not None:
+                    diff = priority_cost - economy_cost
+                    if 0 < diff <= 150:
+                        st.info(
+                            f"與 International Priority 僅差 NT$ {diff:,.0f}，"
+                            f"建議選 Priority 出貨（速度更快）"
+                        )
 
                 c1, c2, c3 = st.columns(3)
                 c1.metric("運費成本 Shipping Cost", f"NT$ {cost_ntd:,.0f}")
