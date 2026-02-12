@@ -49,7 +49,7 @@ def render_history_page():
                     st.session_state["prefill"] = {
                         "model": str(row.get("product_model", "")),
                         "packing_config": str(row.get("packing_config", "")),
-                        "quantity_sets": int(row.get("quantity_sets", 1)) if pd.notna(row.get("quantity_sets")) else 1,
+                        "quantity_sets": str(row.get("quantity_sets", "1")),
                         "dest_zip": str(row.get("destination_zip", "")),
                         "dest_state": str(row.get("destination_state", "")),
                         "exchange_rate": float(row.get("exchange_rate", 30)) if pd.notna(row.get("exchange_rate")) else 30.0,

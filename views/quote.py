@@ -21,6 +21,14 @@ US_STATES = {
     "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC",
 }
 
+MAX_PRODUCTS = 5
+
+# 常用快選型號（排在下拉選單最前面）
+QUICK_MODELS = [
+    "K51M-400-X3", "K51M-450-X3", "K51M-450-X2",
+    "K51P-500-X2", "K51M-500D-X3", "K51MP-450-X2", "K51MP-450-X3",
+]
+
 
 def _parse_us_address(text: str) -> dict:
     """解析美國地址，回傳 {zip, state, city, street}"""
@@ -59,14 +67,30 @@ def _parse_us_address(text: str) -> dict:
     return result
 
 
-def _clear_old_results_if_changed(model, quantity_sets, dest_zip, dest_state):
+def _parse_prefill_products(prefill: dict) -> list:
+    """解析分號分隔的多產品 prefill 資料，回傳 [(model, qty), ...]"""
+    models = [m.strip() for m in str(prefill.get("model", "")).split(";") if m.strip()]
+    quantities_raw = str(prefill.get("quantity_sets", "1")).split(";")
+    quantities = []
+    for q in quantities_raw:
+        try:
+            quantities.append(int(float(q.strip())))
+        except ValueError:
+            quantities.append(1)
+    while len(quantities) < len(models):
+        quantities.append(1)
+    return list(zip(models, quantities))
+
+
+def _clear_old_results_if_changed(product_entries, dest_zip, dest_state):
     """當輸入條件改變時，自動清除舊的報價結果"""
     if "last_query" not in st.session_state:
         return
     q = st.session_state["last_query"]
+    current_key = [(e["model"], e["quantity_sets"]) for e in product_entries]
+    saved_key = q.get("products_key", [])
     if (
-        q["model"] != model
-        or q["quantity_sets"] != quantity_sets
+        current_key != saved_key
         or q["dest_zip"] != dest_zip
         or q["dest_state"] != dest_state
     ):
@@ -79,8 +103,10 @@ def render_quote_page(products: dict):
 
     # ── 檢查是否有預填資料（從歷史紀錄「編輯」按鈕帶入）──
     prefill = st.session_state.pop("prefill", None)
+    prefill_products = []
     if prefill:
         st.info("已從歷史紀錄帶入資料，請修改後重新查詢。\nData loaded from history. Please modify and re-query.")
+        prefill_products = _parse_prefill_products(prefill)
 
     # ── 1. 產品 & 數量 Product & Quantity ──
     col_header, col_link1, col_link2 = st.columns([3, 1, 1])
@@ -101,58 +127,106 @@ def render_quote_page(products: dict):
             unsafe_allow_html=True,
         )
 
-    # 常用快選型號（排在下拉選單最前面）
-    QUICK_MODELS = [
-        "K51M-400-X3", "K51M-450-X3", "K51M-450-X2",
-        "K51P-500-X2", "K51M-500D-X3", "K51MP-450-X2", "K51MP-450-X3",
-    ]
+    # 建立型號清單
     all_models = get_product_models(products)
     other_models = [m for m in all_models if m not in QUICK_MODELS]
     models = QUICK_MODELS + other_models
 
-    # 預填產品型號
-    model_default = None
-    if prefill and prefill.get("model") in models:
-        model_default = models.index(prefill["model"])
+    # 初始化產品列數
+    if prefill_products:
+        st.session_state["num_product_rows"] = len(prefill_products)
+    elif "num_product_rows" not in st.session_state:
+        st.session_state["num_product_rows"] = 1
 
-    col1, col2 = st.columns(2)
-    with col1:
-        model = st.selectbox(
-            "產品型號 Product Model", models,
-            index=model_default,
-            placeholder="請選擇產品型號 Select a model",
-            key="model_select",
-        )
-    with col2:
-        quantity_sets = st.number_input(
-            "數量 Quantity (sets)", min_value=1,
-            value=prefill["quantity_sets"] if prefill else 1,
-            step=1,
-        )
+    num_rows = st.session_state["num_product_rows"]
 
-    if model is None:
-        st.info("請選擇產品型號 Please select a product model")
-        return
+    # 新增 / 移除按鈕
+    btn_col1, btn_col2, _ = st.columns([1, 1, 3])
+    with btn_col1:
+        if num_rows < MAX_PRODUCTS:
+            if st.button("+ 新增產品 Add Product"):
+                st.session_state["num_product_rows"] = num_rows + 1
+                st.rerun()
+    with btn_col2:
+        if num_rows > 1:
+            if st.button("- 移除最後一項 Remove Last"):
+                last = num_rows - 1
+                st.session_state.pop(f"product_{last}_model", None)
+                st.session_state.pop(f"product_{last}_qty", None)
+                st.session_state["num_product_rows"] = num_rows - 1
+                st.rerun()
 
-    # Auto-calculate packing
-    options = get_packing_options(products, model)
-    if options:
-        shipment = calculate_shipment(options, quantity_sets)
+    # 渲染每一列產品
+    product_entries = []
+    has_missing_data = False
 
-        col_a, col_b = st.columns(2)
-        col_a.metric("箱數 Cartons", f"{shipment['num_cartons']} 箱 ctns")
-        col_b.metric("總重量 Total Weight", f"{shipment['total_weight_kg']} kg")
+    for i in range(num_rows):
+        # 預填值
+        prefill_model_idx = None
+        prefill_qty = 1
+        if i < len(prefill_products):
+            pf_model, pf_qty = prefill_products[i]
+            if pf_model in models:
+                prefill_model_idx = models.index(pf_model)
+            prefill_qty = pf_qty
 
-        # 顯示裝箱明細
+        col_model, col_qty = st.columns([3, 1])
+        with col_model:
+            model_i = st.selectbox(
+                f"產品 {i+1} Product {i+1}",
+                models,
+                index=prefill_model_idx,
+                placeholder="請選擇 Select",
+                key=f"product_{i}_model",
+            )
+        with col_qty:
+            qty_i = st.number_input(
+                f"數量 Qty {i+1} (sets)",
+                min_value=1,
+                value=prefill_qty,
+                step=1,
+                key=f"product_{i}_qty",
+            )
+
+        if model_i is None:
+            has_missing_data = True
+            continue
+
+        options_i = get_packing_options(products, model_i)
+        if not options_i:
+            st.warning(f"產品 {i+1} ({model_i}) 無包裝資料 No packing data")
+            has_missing_data = True
+            continue
+
+        shipment_i = calculate_shipment(options_i, qty_i)
+        product_entries.append({
+            "model": model_i,
+            "quantity_sets": qty_i,
+            "shipment": shipment_i,
+        })
+
+        # 顯示個別裝箱明細
         breakdown_parts = []
-        for b in shipment["breakdown"]:
+        for b in shipment_i["breakdown"]:
             breakdown_parts.append(
                 f"{b['count']} 箱 x {b['sets_per_carton']}sets ({b['weight_kg']}kg)"
             )
-        st.caption("裝箱明細 Packing: " + " + ".join(breakdown_parts))
-    else:
-        st.warning("此型號無包裝資料 No packing data for this model")
+        st.caption(f"　{model_i}: " + " + ".join(breakdown_parts))
+
+    if not product_entries:
+        st.info("請選擇至少一個產品型號 Please select at least one product model")
         return
+
+    if has_missing_data:
+        return
+
+    # 加總顯示
+    total_cartons = sum(e["shipment"]["num_cartons"] for e in product_entries)
+    total_weight_kg = round(sum(e["shipment"]["total_weight_kg"] for e in product_entries), 2)
+
+    col_a, col_b = st.columns(2)
+    col_a.metric("總箱數 Total Cartons", f"{total_cartons} 箱 ctns")
+    col_b.metric("總重量 Total Weight", f"{total_weight_kg} kg")
 
     st.divider()
 
@@ -229,7 +303,7 @@ def render_quote_page(products: dict):
     st.divider()
 
     # ── 當輸入改變時，自動清除舊報價結果 ──
-    _clear_old_results_if_changed(model, quantity_sets, dest_zip, dest_state)
+    _clear_old_results_if_changed(product_entries, dest_zip, dest_state)
 
     # ── Query Button ──
     # Get account number from sidebar
@@ -254,12 +328,17 @@ def render_quote_page(products: dict):
             "street": dest_street,
         }
 
+        combined_shipment = {
+            "num_cartons": total_cartons,
+            "total_weight_kg": total_weight_kg,
+        }
+
         with st.spinner("正在查詢 FedEx 運費 Fetching FedEx rates..."):
             try:
                 response = get_rate_quote(
                     account_number=account_number,
-                    total_weight_kg=shipment["total_weight_kg"],
-                    num_packages=shipment["num_cartons"],
+                    total_weight_kg=total_weight_kg,
+                    num_packages=total_cartons,
                     destination=destination,
                 )
                 rates = parse_rate_response(response)
@@ -270,9 +349,9 @@ def render_quote_page(products: dict):
 
                 st.session_state["last_rates"] = rates
                 st.session_state["last_query"] = {
-                    "model": model,
-                    "quantity_sets": quantity_sets,
-                    "shipment": shipment,
+                    "product_entries": product_entries,
+                    "products_key": [(e["model"], e["quantity_sets"]) for e in product_entries],
+                    "combined_shipment": combined_shipment,
                     "dest_state": dest_state,
                     "dest_zip": dest_zip,
                     "exchange_rate": exchange_rate,
@@ -329,13 +408,15 @@ def render_quote_page(products: dict):
             cost_by_type.get("INTERNATIONAL_ECONOMY"),
         )
 
+        combined_weight = query["combined_shipment"]["total_weight_kg"]
+
         for i, rate in enumerate(sorted_rates):
             cost_ntd = rate["total_charge"]
             usd_cost = cost_ntd / current_exchange if current_exchange > 0 else 0
             quoted_usd = usd_cost * (1 + current_markup / 100)
             cost_per_kg = (
-                cost_ntd / query["shipment"]["total_weight_kg"]
-                if query["shipment"]["total_weight_kg"] > 0
+                cost_ntd / combined_weight
+                if combined_weight > 0
                 else 0
             )
 
@@ -388,18 +469,25 @@ def render_quote_page(products: dict):
                     f"儲存此報價 Save Quote",
                     key=f"save_{i}_{rate['service_type']}",
                 ):
-                    # 裝箱明細字串
-                    packing_desc = " + ".join(
-                        f"{b['count']}x{b['sets_per_carton']}sets"
-                        for b in query["shipment"]["breakdown"]
-                    )
+                    entries = query["product_entries"]
+                    product_model_str = "; ".join(e["model"] for e in entries)
+                    quantity_sets_str = "; ".join(str(e["quantity_sets"]) for e in entries)
+                    packing_parts = []
+                    for e in entries:
+                        per_product = " + ".join(
+                            f"{b['count']}x{b['sets_per_carton']}sets"
+                            for b in e["shipment"]["breakdown"]
+                        )
+                        packing_parts.append(f"{e['model']}: {per_product}")
+                    packing_desc = "; ".join(packing_parts)
+
                     save_quote(
                         {
-                            "product_model": query["model"],
+                            "product_model": product_model_str,
                             "packing_config": packing_desc,
-                            "quantity_sets": query["quantity_sets"],
-                            "num_cartons": query["shipment"]["num_cartons"],
-                            "total_weight_kg": query["shipment"]["total_weight_kg"],
+                            "quantity_sets": quantity_sets_str,
+                            "num_cartons": query["combined_shipment"]["num_cartons"],
+                            "total_weight_kg": query["combined_shipment"]["total_weight_kg"],
                             "destination_state": query["dest_state"],
                             "destination_zip": query["dest_zip"],
                             "service_type": rate["service_type"],

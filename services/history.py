@@ -123,7 +123,7 @@ def load_history() -> pd.DataFrame:
 
     # 轉換數字欄位
     numeric_cols = [
-        "quantity_sets", "num_cartons", "total_weight_kg",
+        "num_cartons", "total_weight_kg",
         "shipping_cost_ntd", "exchange_rate", "usd_cost",
         "markup_percent", "quoted_price_usd", "cost_per_kg_ntd",
     ]
