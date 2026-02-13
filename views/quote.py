@@ -6,6 +6,7 @@ from services.product_data import (
     calculate_shipment,
 )
 from services.fedex_api import get_rate_quote, parse_rate_response
+from services.shippo_api import get_domestic_rates, parse_shippo_rates
 from services.history import save_quote
 import config
 
@@ -23,7 +24,6 @@ US_STATES = {
 
 MAX_PRODUCTS = 5
 
-# 常用快選型號（排在下拉選單最前面）
 QUICK_MODELS = [
     "K51M-400-X3", "K51M-450-X3", "K51M-450-X2",
     "K51P-500-X2", "K51M-500D-X3", "K51MP-450-X2", "K51MP-450-X3",
@@ -31,34 +31,29 @@ QUICK_MODELS = [
 
 
 def _parse_us_address(text: str) -> dict:
-    """解析美國地址，回傳 {zip, state, city, street}"""
+    """Parse a US address, return {zip, state, city, street}"""
     result = {"zip": "", "state": "", "city": "", "street": ""}
     text = text.strip()
     if not text:
         return result
 
-    # 0. Remove country name (USA, US, United States, etc.)
     text = re.sub(r"\b(United\s+States|USA|U\.S\.A\.?|US)\b", "", text, flags=re.IGNORECASE)
 
-    # 1. Extract ZIP code (5 digits, optionally -4 digits)
     zip_match = re.search(r"\b(\d{5})(?:-\d{4})?\b", text)
     if zip_match:
         result["zip"] = zip_match.group(1)
         text = text[:zip_match.start()] + text[zip_match.end():]
 
-    # 2. Extract state code (2-letter, case insensitive)
     for token in re.findall(r"\b([A-Za-z]{2})\b", text):
         if token.upper() in US_STATES:
             result["state"] = token.upper()
             text = re.sub(r"\b" + re.escape(token) + r"\b", "", text, count=1)
             break
 
-    # 3. Clean up remaining text → split into street and city
     text = re.sub(r"[,.\n]+", ",", text)
     parts = [p.strip() for p in text.split(",") if p.strip()]
 
     if len(parts) >= 2:
-        # First part = street, last part = city
         result["city"] = parts[-1]
         result["street"] = ", ".join(parts[:-1])
     elif len(parts) == 1:
@@ -68,7 +63,7 @@ def _parse_us_address(text: str) -> dict:
 
 
 def _parse_prefill_products(prefill: dict) -> list:
-    """解析分號分隔的多產品 prefill 資料，回傳 [(model, qty), ...]"""
+    """Parse semicolon-separated multi-product prefill data, return [(model, qty), ...]"""
     models = [m.strip() for m in str(prefill.get("model", "")).split(";") if m.strip()]
     quantities_raw = str(prefill.get("quantity_sets", "1")).split(";")
     quantities = []
@@ -82,33 +77,55 @@ def _parse_prefill_products(prefill: dict) -> list:
     return list(zip(models, quantities))
 
 
-def _clear_old_results_if_changed(product_entries, dest_zip, dest_state):
-    """當輸入條件改變時，自動清除舊的報價結果"""
-    if "last_query" not in st.session_state:
+def _clear_old_results_if_changed(product_entries, dest_zip, dest_state, state_key):
+    """Clear old results when input conditions change"""
+    if state_key not in st.session_state:
         return
-    q = st.session_state["last_query"]
+    q = st.session_state[state_key]
     current_key = [(e["model"], e["quantity_sets"]) for e in product_entries]
     saved_key = q.get("products_key", [])
+    rates_key = state_key.replace("last_query", "last_rates")
     if (
         current_key != saved_key
         or q["dest_zip"] != dest_zip
         or q["dest_state"] != dest_state
     ):
-        st.session_state.pop("last_rates", None)
-        st.session_state.pop("last_query", None)
+        st.session_state.pop(rates_key, None)
+        st.session_state.pop(state_key, None)
 
 
-def render_quote_page(products: dict):
-    st.header("國際運費報價 International Shipping Quote")
+def _get_fixed_basic_cost(total_sets: int) -> tuple[float | None, bool]:
+    """
+    Return (fixed_cost, needs_manual_input) based on total sets.
+    If total_sets > 25, returns (None, True).
+    """
+    for max_sets, cost in config.DOMESTIC_FIXED_COSTS:
+        if total_sets <= max_sets:
+            return cost, False
+    return None, True
 
-    # ── 檢查是否有預填資料（從歷史紀錄「編輯」按鈕帶入）──
-    prefill = st.session_state.pop("prefill", None)
-    prefill_products = []
-    if prefill:
-        st.info("已從歷史紀錄帶入資料，請修改後重新查詢。\nData loaded from history. Please modify and re-query.")
-        prefill_products = _parse_prefill_products(prefill)
 
-    # ── 1. 產品 & 數量 Product & Quantity ──
+def _build_shippo_parcels(total_cartons: int, total_weight_kg: float) -> list[dict]:
+    """Build Shippo parcel list from carton count and total weight."""
+    weight_per_parcel = round(total_weight_kg / total_cartons, 2) if total_cartons > 0 else 0
+    parcels = []
+    for _ in range(total_cartons):
+        parcels.append({
+            "length": str(config.DEFAULT_CARTON_LENGTH_CM),
+            "width": str(config.DEFAULT_CARTON_WIDTH_CM),
+            "height": str(config.DEFAULT_CARTON_HEIGHT_CM),
+            "distance_unit": "cm",
+            "weight": str(weight_per_parcel),
+            "mass_unit": "kg",
+        })
+    return parcels
+
+
+def _render_product_section(products, prefill, prefill_products, pfx):
+    """Render the shared product & quantity section.
+    pfx: key prefix for unique widget keys ('intl' or 'dom').
+    Returns (product_entries, total_cartons, total_weight_kg, total_sets) or None.
+    """
     col_header, col_link1, col_link2 = st.columns([3, 1, 1])
     with col_header:
         st.subheader("1. 產品 & 數量 Product & Quantity")
@@ -127,41 +144,37 @@ def render_quote_page(products: dict):
             unsafe_allow_html=True,
         )
 
-    # 建立型號清單
     all_models = get_product_models(products)
     other_models = [m for m in all_models if m not in QUICK_MODELS]
     models = QUICK_MODELS + other_models
 
-    # 初始化產品列數
+    rows_key = f"{pfx}_num_product_rows"
     if prefill_products:
-        st.session_state["num_product_rows"] = len(prefill_products)
-    elif "num_product_rows" not in st.session_state:
-        st.session_state["num_product_rows"] = 1
+        st.session_state[rows_key] = len(prefill_products)
+    elif rows_key not in st.session_state:
+        st.session_state[rows_key] = 1
 
-    num_rows = st.session_state["num_product_rows"]
+    num_rows = st.session_state[rows_key]
 
-    # 新增 / 移除按鈕
     btn_col1, btn_col2, _ = st.columns([1, 1, 3])
     with btn_col1:
         if num_rows < MAX_PRODUCTS:
-            if st.button("+ 新增產品 Add Product"):
-                st.session_state["num_product_rows"] = num_rows + 1
+            if st.button("+ 新增產品 Add Product", key=f"{pfx}_add_product"):
+                st.session_state[rows_key] = num_rows + 1
                 st.rerun()
     with btn_col2:
         if num_rows > 1:
-            if st.button("- 移除最後一項 Remove Last"):
+            if st.button("- 移除最後一項 Remove Last", key=f"{pfx}_remove_product"):
                 last = num_rows - 1
-                st.session_state.pop(f"product_{last}_model", None)
-                st.session_state.pop(f"product_{last}_qty", None)
-                st.session_state["num_product_rows"] = num_rows - 1
+                st.session_state.pop(f"{pfx}_product_{last}_model", None)
+                st.session_state.pop(f"{pfx}_product_{last}_qty", None)
+                st.session_state[rows_key] = num_rows - 1
                 st.rerun()
 
-    # 渲染每一列產品
     product_entries = []
     has_missing_data = False
 
     for i in range(num_rows):
-        # 預填值
         prefill_model_idx = None
         prefill_qty = 1
         if i < len(prefill_products):
@@ -177,7 +190,7 @@ def render_quote_page(products: dict):
                 models,
                 index=prefill_model_idx,
                 placeholder="請選擇 Select",
-                key=f"product_{i}_model",
+                key=f"{pfx}_product_{i}_model",
             )
         with col_qty:
             qty_i = st.number_input(
@@ -185,7 +198,7 @@ def render_quote_page(products: dict):
                 min_value=1,
                 value=prefill_qty,
                 step=1,
-                key=f"product_{i}_qty",
+                key=f"{pfx}_product_{i}_qty",
             )
 
         if model_i is None:
@@ -205,7 +218,6 @@ def render_quote_page(products: dict):
             "shipment": shipment_i,
         })
 
-        # 顯示個別裝箱明細
         breakdown_parts = []
         for b in shipment_i["breakdown"]:
             breakdown_parts.append(
@@ -215,29 +227,29 @@ def render_quote_page(products: dict):
 
     if not product_entries:
         st.info("請選擇至少一個產品型號 Please select at least one product model")
-        return
+        return None
 
     if has_missing_data:
-        return
+        return None
 
-    # 加總顯示
     total_cartons = sum(e["shipment"]["num_cartons"] for e in product_entries)
     total_weight_kg = round(sum(e["shipment"]["total_weight_kg"] for e in product_entries), 2)
+    total_sets = sum(e["quantity_sets"] for e in product_entries)
 
     col_a, col_b = st.columns(2)
     col_a.metric("總箱數 Total Cartons", f"{total_cartons} 箱 ctns")
     col_b.metric("總重量 Total Weight", f"{total_weight_kg} kg")
 
-    st.divider()
+    return product_entries, total_cartons, total_weight_kg, total_sets
 
-    # ── 2. 美國目的地 US Destination ──
-    st.subheader("2. 美國目的地 US Destination")
 
+def _render_destination_section(prefill, pfx):
+    """Render the US destination section. Returns (dest_zip, dest_state, dest_city, dest_street)."""
     addr_mode = st.radio(
         "輸入方式 Input Method",
         ["ZIP Code", "貼上完整地址 Paste Full Address"],
         horizontal=True,
-        key="addr_mode",
+        key=f"{pfx}_addr_mode",
     )
 
     dest_zip = ""
@@ -250,12 +262,14 @@ def render_quote_page(products: dict):
             "郵遞區號 ZIP Code",
             value=prefill["dest_zip"] if prefill else "",
             placeholder="90001",
+            key=f"{pfx}_dest_zip",
         )
     else:
         full_addr = st.text_area(
             "貼上地址 Paste Address",
             height=80,
             placeholder="例 Example: 1234 Main St, Los Angeles, CA 90001",
+            key=f"{pfx}_full_addr",
         )
         if full_addr.strip():
             parsed = _parse_us_address(full_addr)
@@ -263,7 +277,6 @@ def render_quote_page(products: dict):
             dest_state = parsed["state"]
             dest_city = parsed["city"]
             dest_street = parsed["street"]
-            # 顯示解析結果
             parts = []
             if dest_street:
                 parts.append(f"Street: {dest_street}")
@@ -278,9 +291,81 @@ def render_quote_page(products: dict):
             else:
                 st.caption("無法解析地址 Could not parse address")
 
+    return dest_zip, dest_state, dest_city, dest_street
+
+
+def _save_quote_common(query, rate_data, shipping_type):
+    """Build and save a quote record for both international and domestic."""
+    entries = query["product_entries"]
+    product_model_str = "; ".join(e["model"] for e in entries)
+    quantity_sets_str = "; ".join(str(e["quantity_sets"]) for e in entries)
+    packing_parts = []
+    for e in entries:
+        per_product = " + ".join(
+            f"{b['count']}x{b['sets_per_carton']}sets"
+            for b in e["shipment"]["breakdown"]
+        )
+        packing_parts.append(f"{e['model']}: {per_product}")
+    packing_desc = "; ".join(packing_parts)
+
+    record = {
+        "shipping_type": shipping_type,
+        "product_model": product_model_str,
+        "packing_config": packing_desc,
+        "quantity_sets": quantity_sets_str,
+        "num_cartons": query["combined_shipment"]["num_cartons"],
+        "total_weight_kg": query["combined_shipment"]["total_weight_kg"],
+        "destination_state": query["dest_state"],
+        "destination_zip": query["dest_zip"],
+    }
+    record.update(rate_data)
+    save_quote(record)
+
+
+# ---------------------------------------------------------------------------
+# Main entry
+# ---------------------------------------------------------------------------
+
+def render_quote_page(products: dict):
+    tab_intl, tab_dom = st.tabs([
+        "\u2708\uFE0F  International  國際運費",
+        "\U0001F69A  Domestic  美國國內",
+    ])
+
+    with tab_intl:
+        _render_international_flow(products)
+    with tab_dom:
+        _render_domestic_flow(products)
+
+
+# ---------------------------------------------------------------------------
+# International flow
+# ---------------------------------------------------------------------------
+
+def _render_international_flow(products: dict):
+    pfx = "intl"
+
+    prefill = st.session_state.pop("prefill", None)
+    prefill_products = []
+    if prefill:
+        st.info("已從歷史紀錄帶入資料，請修改後重新查詢。\nData loaded from history. Please modify and re-query.")
+        prefill_products = _parse_prefill_products(prefill)
+
+    # ── 1. Product & Quantity ──
+    product_result = _render_product_section(products, prefill, prefill_products, pfx)
+    if product_result is None:
+        return
+    product_entries, total_cartons, total_weight_kg, total_sets = product_result
+
     st.divider()
 
-    # ── 3. 報價設定 Quote Settings ──
+    # ── 2. Destination ──
+    st.subheader("2. 美國目的地 US Destination")
+    dest_zip, dest_state, dest_city, dest_street = _render_destination_section(prefill, pfx)
+
+    st.divider()
+
+    # ── 3. Quote Settings ──
     st.subheader("3. 報價設定 Quote Settings")
     col1, col2 = st.columns(2)
     with col1:
@@ -290,6 +375,7 @@ def render_quote_page(products: dict):
             min_value=1.0,
             step=0.5,
             format="%.1f",
+            key=f"{pfx}_exchange_rate",
         )
     with col2:
         markup_percent = st.number_input(
@@ -298,27 +384,23 @@ def render_quote_page(products: dict):
             min_value=0.0,
             step=1.0,
             format="%.1f",
+            key=f"{pfx}_markup_percent",
         )
 
     st.divider()
 
-    # ── 當輸入改變時，自動清除舊報價結果 ──
-    _clear_old_results_if_changed(product_entries, dest_zip, dest_state)
+    # ── Clear stale results ──
+    _clear_old_results_if_changed(product_entries, dest_zip, dest_state, f"{pfx}_last_query")
 
     # ── Query Button ──
-    # Get account number from sidebar
     account_number = st.session_state.get("fedex_account", "")
 
-    if st.button("查詢 FedEx 運費 Get FedEx Rates", type="primary", use_container_width=True):
-        # Validation
+    if st.button("查詢 FedEx 運費 Get FedEx Rates", type="primary", use_container_width=True, key=f"{pfx}_query_btn"):
         if not account_number:
             st.error("請在左側欄輸入 FedEx 帳號號碼（9位數）\nPlease enter FedEx Account No. (9 digits) in the sidebar")
             return
         if not dest_zip and not (dest_city and dest_state):
-            if addr_mode == "ZIP Code":
-                st.error("請輸入 ZIP Code\nPlease enter a ZIP Code")
-            else:
-                st.error("無法從地址解析出 ZIP 或 City + State，請檢查地址格式\nCould not parse ZIP or City + State from the address")
+            st.error("請輸入 ZIP Code 或完整地址\nPlease enter a ZIP Code or full address")
             return
 
         destination = {
@@ -347,8 +429,9 @@ def render_quote_page(products: dict):
                     st.warning("FedEx 未回傳任何運費方案，請確認地址是否正確。\nNo rates returned. Please verify the address.")
                     return
 
-                st.session_state["last_rates"] = rates
-                st.session_state["last_query"] = {
+                st.session_state[f"{pfx}_last_rates"] = rates
+                st.session_state[f"{pfx}_last_query"] = {
+                    "shipping_type": "international",
                     "product_entries": product_entries,
                     "products_key": [(e["model"], e["quantity_sets"]) for e in product_entries],
                     "combined_shipment": combined_shipment,
@@ -369,18 +452,15 @@ def render_quote_page(products: dict):
                         st.code(e.response.text[:1000])
                 return
 
-    # ── 4. 運費結果 Rate Results ──
-    if "last_rates" in st.session_state and "last_query" in st.session_state:
+    # ── 4. Results ──
+    if f"{pfx}_last_rates" in st.session_state and f"{pfx}_last_query" in st.session_state:
         st.subheader("4. 運費結果 Rate Results")
 
-        query = st.session_state["last_query"]
-        rates = st.session_state["last_rates"]
-
-        # Use current markup/exchange rate settings (allow live adjustment)
+        query = st.session_state[f"{pfx}_last_query"]
+        rates = st.session_state[f"{pfx}_last_rates"]
         current_exchange = exchange_rate
         current_markup = markup_percent
 
-        # Sort rates: Priority Express first, then Priority, then others
         SERVICE_ORDER = {
             "FEDEX_INTERNATIONAL_PRIORITY_EXPRESS": 0,
             "INTERNATIONAL_PRIORITY": 1,
@@ -393,12 +473,10 @@ def render_quote_page(products: dict):
             key=lambda r: SERVICE_ORDER.get(r["service_type"], 99),
         )
 
-        # Build cost lookup for comparison
         cost_by_type = {}
         for rate in sorted_rates:
             cost_by_type[rate["service_type"]] = rate["total_charge"]
 
-        # Check Priority vs Economy price difference
         priority_cost = cost_by_type.get(
             "FEDEX_INTERNATIONAL_PRIORITY",
             cost_by_type.get("INTERNATIONAL_PRIORITY"),
@@ -426,7 +504,6 @@ def render_quote_page(products: dict):
             is_economy = stype in ("INTERNATIONAL_ECONOMY", "FEDEX_INTERNATIONAL_ECONOMY")
 
             with st.container(border=True):
-                # Service name with label
                 if is_priority_express:
                     st.markdown(
                         f"**{rate['service_name']}**　"
@@ -444,7 +521,6 @@ def render_quote_page(products: dict):
                 else:
                     st.markdown(f"**{rate['service_name']}**")
 
-                # Priority vs Economy recommendation
                 if is_economy and priority_cost is not None and economy_cost is not None:
                     diff = priority_cost - economy_cost
                     if 0 < diff <= 150:
@@ -466,38 +542,202 @@ def render_quote_page(products: dict):
                 c5.metric("預計天數 Transit Days", rate["transit_days"])
 
                 if st.button(
-                    f"儲存此報價 Save Quote",
-                    key=f"save_{i}_{rate['service_type']}",
+                    "儲存此報價 Save Quote",
+                    key=f"save_intl_{i}_{rate['service_type']}",
                 ):
-                    entries = query["product_entries"]
-                    product_model_str = "; ".join(e["model"] for e in entries)
-                    quantity_sets_str = "; ".join(str(e["quantity_sets"]) for e in entries)
-                    packing_parts = []
-                    for e in entries:
-                        per_product = " + ".join(
-                            f"{b['count']}x{b['sets_per_carton']}sets"
-                            for b in e["shipment"]["breakdown"]
-                        )
-                        packing_parts.append(f"{e['model']}: {per_product}")
-                    packing_desc = "; ".join(packing_parts)
+                    _save_quote_common(query, {
+                        "service_type": rate["service_type"],
+                        "service_name": rate["service_name"],
+                        "shipping_cost_ntd": cost_ntd,
+                        "exchange_rate": current_exchange,
+                        "usd_cost": round(usd_cost, 2),
+                        "markup_percent": current_markup,
+                        "quoted_price_usd": round(quoted_usd, 2),
+                        "cost_per_kg_ntd": round(cost_per_kg, 2),
+                    }, "international")
+                    st.success("報價已儲存! Quote saved!")
 
-                    save_quote(
-                        {
-                            "product_model": product_model_str,
-                            "packing_config": packing_desc,
-                            "quantity_sets": quantity_sets_str,
-                            "num_cartons": query["combined_shipment"]["num_cartons"],
-                            "total_weight_kg": query["combined_shipment"]["total_weight_kg"],
-                            "destination_state": query["dest_state"],
-                            "destination_zip": query["dest_zip"],
-                            "service_type": rate["service_type"],
-                            "service_name": rate["service_name"],
-                            "shipping_cost_ntd": cost_ntd,
-                            "exchange_rate": current_exchange,
-                            "usd_cost": round(usd_cost, 2),
-                            "markup_percent": current_markup,
-                            "quoted_price_usd": round(quoted_usd, 2),
-                            "cost_per_kg_ntd": round(cost_per_kg, 2),
-                        }
-                    )
+
+# ---------------------------------------------------------------------------
+# Domestic flow
+# ---------------------------------------------------------------------------
+
+def _render_domestic_flow(products: dict):
+    pfx = "dom"
+
+    prefill = st.session_state.pop("prefill_dom", None)
+    prefill_products = []
+    if prefill:
+        st.info("已從歷史紀錄帶入資料，請修改後重新查詢。\nData loaded from history. Please modify and re-query.")
+        prefill_products = _parse_prefill_products(prefill)
+
+    # ── 1. Product & Quantity ──
+    product_result = _render_product_section(products, prefill, prefill_products, pfx)
+    if product_result is None:
+        return
+    product_entries, total_cartons, total_weight_kg, total_sets = product_result
+
+    st.divider()
+
+    # ── 2. Sender ──
+    st.subheader("2. 寄件地 Sender")
+    sender_labels = [
+        f"{name} ({info['zip']})"
+        for name, info in config.DOMESTIC_SENDERS.items()
+    ] + ["Custom ZIP 自訂"]
+
+    sender_choice = st.radio(
+        "寄件倉庫 Sender Warehouse",
+        sender_labels,
+        horizontal=True,
+        key=f"{pfx}_sender_choice",
+    )
+
+    sender_address = None
+    if sender_choice == "Custom ZIP 自訂":
+        custom_zip = st.text_input(
+            "自訂寄件 ZIP Custom Sender ZIP",
+            placeholder="10001",
+            key=f"{pfx}_custom_sender_zip",
+        )
+        sender_address = {
+            "street1": "",
+            "city": "",
+            "state": "",
+            "zip": custom_zip,
+            "country": "US",
+        }
+    else:
+        for name, info in config.DOMESTIC_SENDERS.items():
+            if sender_choice.startswith(name):
+                sender_address = info
+                break
+
+    st.divider()
+
+    # ── 3. Destination ──
+    st.subheader("3. 收件地 US Destination")
+    dest_zip, dest_state, dest_city, dest_street = _render_destination_section(prefill, pfx)
+
+    st.divider()
+
+    # ── Fixed basic cost (calculated, shown inline before query) ──
+    auto_fixed, needs_manual = _get_fixed_basic_cost(total_sets)
+    fixed_basic_cost = 0.0
+
+    if needs_manual:
+        st.warning(
+            f"總組數 {total_sets} sets 超過 25，請手動輸入固定基本費用。\n"
+            f"Total sets exceed 25. Please enter the fixed basic cost manually."
+        )
+        fixed_basic_cost = st.number_input(
+            "固定基本費用 Fixed Basic Cost (USD)",
+            min_value=0.0,
+            value=30.0,
+            step=5.0,
+            format="%.0f",
+            key=f"{pfx}_manual_fixed_cost",
+        )
+    else:
+        fixed_basic_cost = auto_fixed
+
+    # ── Clear stale results ──
+    _clear_old_results_if_changed(product_entries, dest_zip, dest_state, f"{pfx}_last_query")
+
+    # ── Query Button ──
+    if st.button("查詢 Shippo 運費 Get Domestic Rates", type="primary", use_container_width=True, key=f"{pfx}_query_btn"):
+        if not sender_address or not sender_address.get("zip"):
+            st.error("請選擇寄件倉庫或輸入自訂 ZIP\nPlease select a sender warehouse or enter a custom ZIP")
+            return
+        if not dest_zip:
+            st.error("請輸入目的地 ZIP Code\nPlease enter a destination ZIP Code")
+            return
+
+        parcels = _build_shippo_parcels(total_cartons, total_weight_kg)
+
+        combined_shipment = {
+            "num_cartons": total_cartons,
+            "total_weight_kg": total_weight_kg,
+        }
+
+        with st.spinner("正在查詢 Shippo 運費 Fetching domestic rates..."):
+            try:
+                response = get_domestic_rates(
+                    sender=sender_address,
+                    recipient_zip=dest_zip,
+                    parcels=parcels,
+                )
+                rates = parse_shippo_rates(response)
+
+                if not rates:
+                    st.warning("Shippo 未回傳任何運費方案，請確認地址是否正確。\nNo rates returned. Please verify the address.")
+                    return
+
+                st.session_state[f"{pfx}_last_rates"] = rates
+                st.session_state[f"{pfx}_last_query"] = {
+                    "shipping_type": "domestic",
+                    "product_entries": product_entries,
+                    "products_key": [(e["model"], e["quantity_sets"]) for e in product_entries],
+                    "combined_shipment": combined_shipment,
+                    "dest_state": dest_state,
+                    "dest_zip": dest_zip,
+                    "total_sets": total_sets,
+                    "fixed_basic_cost": fixed_basic_cost,
+                    "sender_zip": sender_address.get("zip", ""),
+                }
+
+            except Exception as e:
+                error_msg = str(e)
+                st.error(f"查詢失敗 Query failed: {error_msg}")
+                if hasattr(e, "response") and e.response is not None:
+                    try:
+                        detail = e.response.json()
+                        st.json(detail)
+                    except Exception:
+                        st.code(e.response.text[:1000])
+                return
+
+    # ── 4. 運費報價 Rate Results ──
+    if f"{pfx}_last_rates" in st.session_state and f"{pfx}_last_query" in st.session_state:
+        st.subheader("4. 運費報價 Shipping Rates")
+
+        query = st.session_state[f"{pfx}_last_query"]
+        rates = st.session_state[f"{pfx}_last_rates"]
+        effective_fixed = fixed_basic_cost
+
+        st.caption(
+            f"定價公式 Pricing: Shippo Cost × {config.DOMESTIC_MARKUP} + "
+            f"${effective_fixed:.0f} (fixed, {total_sets} sets)"
+        )
+
+        for i, rate in enumerate(rates):
+            shippo_cost = rate["amount_usd"]
+            quoted_usd = round(shippo_cost * config.DOMESTIC_MARKUP + effective_fixed, 2)
+
+            with st.container(border=True):
+                st.markdown(f"**{rate['provider']} — {rate['service_name']}**")
+
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Shippo 成本 Cost", f"US$ {shippo_cost:,.2f}")
+                c2.metric("報價金額 Quoted Price", f"US$ {quoted_usd:,.2f}")
+                c3.metric("預計天數 Transit Days", rate["estimated_days"])
+
+                st.caption(
+                    f"${shippo_cost:,.2f} × {config.DOMESTIC_MARKUP} + ${effective_fixed:.0f} = ${quoted_usd:,.2f}"
+                )
+
+                if st.button(
+                    "儲存此報價 Save Quote",
+                    key=f"save_dom_{i}_{rate['service_token']}",
+                ):
+                    _save_quote_common(query, {
+                        "service_type": rate["service_token"],
+                        "service_name": f"{rate['provider']} {rate['service_name']}",
+                        "shipping_cost_ntd": 0,
+                        "exchange_rate": 0,
+                        "usd_cost": round(shippo_cost, 2),
+                        "markup_percent": 0,
+                        "quoted_price_usd": quoted_usd,
+                        "cost_per_kg_ntd": 0,
+                    }, "domestic")
                     st.success("報價已儲存! Quote saved!")

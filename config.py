@@ -23,6 +23,42 @@ FEDEX_SECRET_KEY = _get_secret("FEDEX_SECRET_KEY")
 FEDEX_ACCOUNT_NUMBER = _get_secret("FEDEX_ACCOUNT_NUMBER")
 FEDEX_BASE_URL = _get_secret("FEDEX_BASE_URL", "https://apis.fedex.com")
 
+# Shippo API (domestic shipping)
+SHIPPO_API_TOKEN = _get_secret("SHIPPO_API_TOKEN")
+
+# Domestic sender presets
+DOMESTIC_SENDERS = {
+    "WLOK": {
+        "street1": "861 Production Place",
+        "city": "Holland",
+        "state": "MI",
+        "zip": "49423",
+        "country": "US",
+    },
+    "Gladstone": {
+        "street1": "2750 E. Mission Blvd.",
+        "city": "Ontario",
+        "state": "CA",
+        "zip": "91761",
+        "country": "US",
+    },
+}
+
+# Default carton dimensions for Shippo (cm)
+DEFAULT_CARTON_LENGTH_CM = 30
+DEFAULT_CARTON_WIDTH_CM = 23
+DEFAULT_CARTON_HEIGHT_CM = 19
+
+# Domestic pricing: Shippo cost x DOMESTIC_MARKUP + fixed basic cost
+DOMESTIC_MARKUP = 1.25
+DOMESTIC_FIXED_COSTS = [
+    (5, 5),    # 1-5 sets: +$5
+    (10, 10),  # 6-10 sets: +$10
+    (15, 15),  # 11-15 sets: +$15
+    (20, 20),  # 16-20 sets: +$20
+    (25, 25),  # 21-25 sets: +$25
+]  # 25+ sets: prompt user
+
 # Sender address (fixed: Taipei office)
 SENDER_ADDRESS = {
     "streetLines": ["No.185, Zhiyuan 3rd Rd."],

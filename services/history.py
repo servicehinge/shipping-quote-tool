@@ -8,6 +8,7 @@ TZ_TAIPEI = timezone(timedelta(hours=8))
 
 COLUMNS = [
     "timestamp",
+    "shipping_type",
     "product_model",
     "packing_config",
     "quantity_sets",
@@ -27,6 +28,7 @@ COLUMNS = [
 
 COLUMN_LABELS = {
     "timestamp": "日期時間",
+    "shipping_type": "運送類型",
     "product_model": "產品型號",
     "packing_config": "包裝規格",
     "quantity_sets": "數量(sets)",
