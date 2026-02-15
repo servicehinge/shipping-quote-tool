@@ -51,6 +51,10 @@ DEFAULT_CARTON_HEIGHT_CM = 19
 
 # Domestic pricing: Shippo cost x DOMESTIC_MARKUP + fixed basic cost
 DOMESTIC_MARKUP = 1.25
+
+# Ocean shipping (Projects): TW → US warehouse + insurance
+OCEAN_COST_PER_KG = 0.55
+OCEAN_INSURANCE = 100.0
 DOMESTIC_FIXED_COSTS = [
     (5, 5),    # 1-5 sets: +$5
     (10, 10),  # 6-10 sets: +$10

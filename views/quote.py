@@ -238,7 +238,7 @@ def _render_product_section(products, prefill, prefill_products, pfx):
 
     col_a, col_b = st.columns(2)
     col_a.metric("總箱數 Total Cartons", f"{total_cartons} 箱 ctns")
-    col_b.metric("總重量 Total Weight", f"{total_weight_kg} kg")
+    col_b.metric("產品重量 Product Weight", f"{total_weight_kg} kg")
 
     return product_entries, total_cartons, total_weight_kg, total_sets
 
@@ -327,15 +327,18 @@ def _save_quote_common(query, rate_data, shipping_type):
 # ---------------------------------------------------------------------------
 
 def render_quote_page(products: dict):
-    tab_intl, tab_dom = st.tabs([
+    tab_intl, tab_dom, tab_ocean = st.tabs([
         "\u2708\uFE0F  International  國際運費",
         "\U0001F69A  Domestic  美國國內",
+        "\U0001F6A2  Projects  海運專案",
     ])
 
     with tab_intl:
         _render_international_flow(products)
     with tab_dom:
         _render_domestic_flow(products)
+    with tab_ocean:
+        _render_ocean_flow(products)
 
 
 # ---------------------------------------------------------------------------
@@ -356,6 +359,18 @@ def _render_international_flow(products: dict):
     if product_result is None:
         return
     product_entries, total_cartons, total_weight_kg, total_sets = product_result
+
+    extra_weight = st.number_input(
+        "額外重量 Extra Weight (kg)",
+        min_value=0.0,
+        value=0.5,
+        step=0.1,
+        format="%.1f",
+        key=f"{pfx}_extra_weight",
+    )
+
+    combined_weight = total_weight_kg + extra_weight
+    st.metric("合計重量 Combined Weight", f"{combined_weight:.1f} kg")
 
     st.divider()
 
@@ -412,14 +427,14 @@ def _render_international_flow(products: dict):
 
         combined_shipment = {
             "num_cartons": total_cartons,
-            "total_weight_kg": total_weight_kg,
+            "total_weight_kg": combined_weight,
         }
 
         with st.spinner("正在查詢 FedEx 運費 Fetching FedEx rates..."):
             try:
                 response = get_rate_quote(
                     account_number=account_number,
-                    total_weight_kg=total_weight_kg,
+                    total_weight_kg=combined_weight,
                     num_packages=total_cartons,
                     destination=destination,
                 )
@@ -577,6 +592,18 @@ def _render_domestic_flow(products: dict):
         return
     product_entries, total_cartons, total_weight_kg, total_sets = product_result
 
+    extra_weight = st.number_input(
+        "額外重量 Extra Weight (kg)",
+        min_value=0.0,
+        value=0.5,
+        step=0.1,
+        format="%.1f",
+        key=f"{pfx}_extra_weight",
+    )
+
+    combined_weight = total_weight_kg + extra_weight
+    st.metric("合計重量 Combined Weight", f"{combined_weight:.1f} kg")
+
     st.divider()
 
     # ── 2. Sender ──
@@ -653,11 +680,11 @@ def _render_domestic_flow(products: dict):
             st.error("請輸入目的地 ZIP Code\nPlease enter a destination ZIP Code")
             return
 
-        parcels = _build_shippo_parcels(total_cartons, total_weight_kg)
+        parcels = _build_shippo_parcels(total_cartons, combined_weight)
 
         combined_shipment = {
             "num_cartons": total_cartons,
-            "total_weight_kg": total_weight_kg,
+            "total_weight_kg": combined_weight,
         }
 
         with st.spinner("正在查詢 Shippo 運費 Fetching domestic rates..."):
@@ -741,3 +768,131 @@ def _render_domestic_flow(products: dict):
                         "cost_per_kg_ntd": 0,
                     }, "domestic")
                     st.success("報價已儲存! Quote saved!")
+
+
+# ---------------------------------------------------------------------------
+# Ocean (Projects) flow
+# ---------------------------------------------------------------------------
+
+def _render_ocean_flow(products: dict):
+    pfx = "ocean"
+
+    prefill = st.session_state.pop("prefill_ocean", None)
+    prefill_products = []
+    if prefill:
+        st.info("已從歷史紀錄帶入資料，請修改後重新查詢。\nData loaded from history. Please modify and re-query.")
+        prefill_products = _parse_prefill_products(prefill)
+
+    # ── 1. Product & Quantity ──
+    product_result = _render_product_section(products, prefill, prefill_products, pfx)
+    if product_result is None:
+        return
+    product_entries, total_cartons, total_weight_kg, total_sets = product_result
+
+    extra_weight = st.number_input(
+        "額外重量 Extra Weight (kg)",
+        min_value=0.0,
+        value=0.5,
+        step=0.1,
+        format="%.1f",
+        key=f"{pfx}_extra_weight",
+    )
+
+    combined_weight = total_weight_kg + extra_weight
+    st.metric("合計重量 Combined Weight", f"{combined_weight:.1f} kg")
+
+    st.divider()
+
+    # ── 2. Destination (for record keeping) ──
+    st.subheader("2. 美國目的地 US Destination")
+    dest_zip, dest_state, dest_city, dest_street = _render_destination_section(prefill, pfx)
+
+    st.divider()
+
+    # ── 3. Cost Inputs ──
+    st.subheader("3. 費用設定 Cost Inputs")
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        ocean_per_kg = st.number_input(
+            "海運 Ocean ($/kg)",
+            min_value=0.0,
+            value=config.OCEAN_COST_PER_KG,
+            step=0.05,
+            format="%.2f",
+            key=f"{pfx}_ocean_per_kg",
+        )
+    with col2:
+        inland_per_kg = st.number_input(
+            "內陸 Inland X ($/kg)",
+            min_value=0.0,
+            value=1.20,
+            step=0.05,
+            format="%.2f",
+            key=f"{pfx}_inland_per_kg",
+        )
+    with col3:
+        insurance = st.number_input(
+            "訂單處理費 Handling Fee ($)",
+            min_value=0.0,
+            value=config.OCEAN_INSURANCE,
+            step=10.0,
+            format="%.0f",
+            key=f"{pfx}_insurance",
+        )
+
+    st.divider()
+
+    # ── 4. Instant Calculation ──
+    st.subheader("4. 報價結果 Quote Result")
+
+    combined_per_kg = ocean_per_kg + inland_per_kg
+    total_shipping = combined_per_kg * combined_weight
+    grand_total = total_shipping + insurance
+
+    st.caption(
+        f"公式 Formula: ({ocean_per_kg:.2f} + {inland_per_kg:.2f}) × {combined_weight:.1f} kg + 處理費 ${insurance:.0f} = **${grand_total:,.2f}**"
+    )
+
+    with st.container(border=True):
+        c1, c2, c3 = st.columns(3)
+        c1.metric("海運 Ocean $/kg", f"$ {ocean_per_kg:.2f}")
+        c2.metric("內陸 Inland $/kg", f"$ {inland_per_kg:.2f}")
+        c3.metric("合計 Combined $/kg", f"$ {combined_per_kg:.2f}")
+
+        c4, c5, c6 = st.columns(3)
+        c4.metric("產品重量 Product Weight", f"{total_weight_kg} kg")
+        c5.metric("額外重量 Extra Weight", f"{extra_weight:.1f} kg")
+        c6.metric("合計重量 Combined Weight", f"{combined_weight:.1f} kg")
+
+        c7, c8 = st.columns(2)
+        c7.metric("訂單處理費 Handling Fee", f"$ {insurance:,.0f}")
+        c8.metric("總報價 Grand Total", f"US$ {grand_total:,.2f}")
+
+    # ── Save ──
+    if st.button("儲存此報價 Save Quote", type="primary", use_container_width=True, key=f"{pfx}_save_btn"):
+        query = {
+            "shipping_type": "ocean",
+            "product_entries": product_entries,
+            "combined_shipment": {
+                "num_cartons": total_cartons,
+                "total_weight_kg": combined_weight,
+            },
+            "dest_state": dest_state,
+            "dest_zip": dest_zip,
+        }
+        _save_quote_common(query, {
+            "service_type": "OCEAN_PROJECT",
+            "service_name": "Ocean Shipping (Projects)",
+            "shipping_cost_ntd": 0,
+            "exchange_rate": 0,
+            "usd_cost": round(total_shipping, 2),
+            "markup_percent": 0,
+            "quoted_price_usd": round(grand_total, 2),
+            "cost_per_kg_ntd": 0,
+            "ocean_per_kg": ocean_per_kg,
+            "inland_per_kg": inland_per_kg,
+            "insurance": insurance,
+            "extra_weight_kg": extra_weight,
+        }, "ocean")
+        st.success("報價已儲存! Quote saved!")
