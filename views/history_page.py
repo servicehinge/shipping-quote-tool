@@ -16,10 +16,10 @@ def render_history_page():
     # ── Filters ──
     col1, col2 = st.columns(2)
     with col1:
-        model_options = sorted(df["product_model"].dropna().unique().tolist())
+        model_options = sorted(s for s in df["product_model"].dropna().astype(str).unique() if s)
         model_filter = st.multiselect("篩選產品型號 Filter by Model", model_options)
     with col2:
-        state_options = sorted(df["destination_state"].dropna().unique().tolist())
+        state_options = sorted(s for s in df["destination_state"].dropna().astype(str).unique() if s)
         state_filter = st.multiselect("篩選州別 Filter by State", state_options)
 
     # Apply filters
