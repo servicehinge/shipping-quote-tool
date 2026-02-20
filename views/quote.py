@@ -258,6 +258,16 @@ def _render_destination_section(prefill, pfx):
     dest_street = ""
 
     if addr_mode == "ZIP Code":
+        # Quick pick buttons for common destinations
+        cols = st.columns(len(config.COMMON_DESTINATIONS) + 1)
+        cols[0].markdown("**常用 Quick Pick:**")
+        for i, (name, info) in enumerate(config.COMMON_DESTINATIONS.items()):
+            if cols[i + 1].button(
+                f"{name} {info['zip']}",
+                key=f"{pfx}_qp_{name}",
+            ):
+                st.session_state[f"{pfx}_dest_zip"] = info["zip"]
+
         dest_zip = st.text_input(
             "郵遞區號 ZIP Code",
             value=prefill["dest_zip"] if prefill else "",

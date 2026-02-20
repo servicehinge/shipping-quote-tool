@@ -44,6 +44,13 @@ DOMESTIC_SENDERS = {
     },
 }
 
+# Common US destinations (quick pick)
+COMMON_DESTINATIONS = {
+    "Mayflowers": {"zip": "11238"},
+    "San Diego Hardware": {"zip": "92123"},
+    "IML Dallas": {"zip": "76011"},
+}
+
 # Default carton dimensions for Shippo (cm)
 DEFAULT_CARTON_LENGTH_CM = 30
 DEFAULT_CARTON_WIDTH_CM = 23
