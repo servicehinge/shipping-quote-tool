@@ -63,11 +63,11 @@ DOMESTIC_MARKUP = 1.25
 OCEAN_COST_PER_KG = 0.55
 OCEAN_INSURANCE = 100.0
 DOMESTIC_FIXED_COSTS = [
-    (5, 5),    # 1-5 sets: +$5
-    (10, 10),  # 6-10 sets: +$10
-    (15, 15),  # 11-15 sets: +$15
-    (20, 20),  # 16-20 sets: +$20
-    (25, 25),  # 21-25 sets: +$25
+    (5, 10),   # 1-5 sets: +$10
+    (10, 15),  # 6-10 sets: +$15
+    (15, 20),  # 11-15 sets: +$20
+    (20, 25),  # 16-20 sets: +$25
+    (25, 30),  # 21-25 sets: +$30
 ]  # 25+ sets: prompt user
 
 # Sender address (fixed: Taipei office)
