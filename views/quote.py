@@ -752,7 +752,10 @@ def _render_domestic_flow(products: dict):
             quoted_usd = round(shippo_cost * config.DOMESTIC_MARKUP + effective_fixed, 2)
 
             with st.container(border=True):
-                st.markdown(f"**{rate['provider']} — {rate['service_name']}**")
+                label = f"**{rate['provider']} — {rate['service_name']}**"
+                if rate["provider"] == "USPS":
+                    label += "　⚠️ Avoid if possible"
+                st.markdown(label)
 
                 c1, c2, c3 = st.columns(3)
                 c1.metric("Shippo 成本 Cost", f"US$ {shippo_cost:,.2f}")
