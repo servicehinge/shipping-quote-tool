@@ -753,6 +753,8 @@ def _render_domestic_flow(products: dict):
 
             with st.container(border=True):
                 label = f"**{rate['provider']} — {rate['service_name']}**"
+                if rate.get("account_name"):
+                    label += f"　`{rate['account_name']}`"
                 if rate["provider"] == "USPS":
                     label += "　⚠️ Avoid if possible"
                 st.markdown(label)

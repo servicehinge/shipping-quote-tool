@@ -1,6 +1,48 @@
 import requests
 import config
 
+# Cache carrier account names (fetched once per session)
+_carrier_account_names: dict[str, str] | None = None
+
+
+def get_carrier_account_names(api_token: str | None = None) -> dict[str, str]:
+    """
+    Fetch all carrier accounts from Shippo and return a mapping of
+    object_id -> display name (account nickname or carrier + account_id).
+    """
+    global _carrier_account_names
+    if _carrier_account_names is not None:
+        return _carrier_account_names
+
+    token = api_token or config.SHIPPO_API_TOKEN
+    if not token:
+        return {}
+
+    url = "https://api.goshippo.com/carrier_accounts/"
+    headers = {
+        "Authorization": f"ShippoToken {token}",
+        "Content-Type": "application/json",
+    }
+
+    names = {}
+    try:
+        while url:
+            resp = requests.get(url, headers=headers, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            for acct in data.get("results", []):
+                obj_id = acct.get("object_id", "")
+                # Use carrier + account_id as default label
+                carrier = acct.get("carrier", "").upper()
+                acct_id = acct.get("account_id", "")
+                names[obj_id] = f"{carrier} ({acct_id})" if acct_id else carrier
+            url = data.get("next")
+    except Exception:
+        pass
+
+    _carrier_account_names = names
+    return names
+
 
 def get_domestic_rates(
     sender: dict,
@@ -63,10 +105,12 @@ def parse_shippo_rates(response_json: dict) -> list[dict]:
             "service_token": str,   Shippo service token
             "amount_usd": float,    Shippo cost in USD
             "estimated_days": str,  e.g. "3" or "N/A"
+            "account_name": str,    carrier account label
         }
         Sorted by price ascending.
     """
     rates_raw = response_json.get("rates", [])
+    acct_names = get_carrier_account_names()
     results = []
 
     for rate in rates_raw:
@@ -84,12 +128,16 @@ def parse_shippo_rates(response_json: dict) -> list[dict]:
         if estimated_days != "N/A":
             estimated_days = str(estimated_days)
 
+        carrier_acct_id = rate.get("carrier_account", "")
+        account_name = acct_names.get(carrier_acct_id, "")
+
         results.append({
             "provider": rate.get("provider", ""),
             "service_name": rate.get("servicelevel", {}).get("name", ""),
             "service_token": rate.get("servicelevel", {}).get("token", ""),
             "amount_usd": amount,
             "estimated_days": estimated_days,
+            "account_name": account_name,
         })
 
     # Sort by price ascending
