@@ -35,10 +35,10 @@ def _fetch_carrier_accounts(api_token: str | None = None) -> dict:
                 carrier = acct.get("carrier", "").upper()
                 acct_id = acct.get("account_id", "")
                 active = acct.get("active", True)
-                # Friendly name for UPS accounts
-                if carrier == "UPS" and acct_id == "shippo_ups_account":
+                # Friendly names for carrier accounts
+                if acct_id and acct_id.startswith("shippo_"):
                     name = "Shippo"
-                elif carrier == "UPS" and acct_id != "shippo_ups_account":
+                elif carrier == "UPS":
                     name = "Mayflowers"
                 else:
                     name = f"{carrier} ({acct_id})" if acct_id else carrier

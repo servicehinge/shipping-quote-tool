@@ -752,13 +752,12 @@ def _render_domestic_flow(products: dict):
             quoted_usd = round(shippo_cost * config.DOMESTIC_MARKUP + effective_fixed, 2)
 
             with st.container(border=True):
-                # Provider + service as heading
-                heading = f"### {rate['provider']} — {rate['service_name']}"
+                # Provider + service + account as heading
+                acct_label = f" — {rate['account_name']}" if rate.get("account_name") else ""
+                heading = f"### {rate['provider']} — {rate['service_name']}{acct_label}"
                 if rate["provider"] == "USPS":
                     heading += "　⚠️ Avoid if possible"
                 st.markdown(heading)
-                if rate.get("account_name"):
-                    st.caption(f"Account: {rate['account_name']}")
 
                 c1, c2, c3 = st.columns(3)
                 c1.metric("Shippo 成本 Cost", f"US$ {shippo_cost:,.2f}")
