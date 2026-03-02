@@ -1,18 +1,18 @@
 import requests
 import config
 
-# Cache carrier account names (fetched once per session)
-_carrier_account_names: dict[str, str] | None = None
+# Cache carrier account info (fetched once per session)
+_carrier_account_cache: dict | None = None
 
 
-def get_carrier_account_names(api_token: str | None = None) -> dict[str, str]:
+def _fetch_carrier_accounts(api_token: str | None = None) -> dict:
     """
-    Fetch all carrier accounts from Shippo and return a mapping of
-    object_id -> display name (account nickname or carrier + account_id).
+    Fetch all carrier accounts from Shippo.
+    Returns { object_id: { "name": str, "active": bool } }
     """
-    global _carrier_account_names
-    if _carrier_account_names is not None:
-        return _carrier_account_names
+    global _carrier_account_cache
+    if _carrier_account_cache is not None:
+        return _carrier_account_cache
 
     token = api_token or config.SHIPPO_API_TOKEN
     if not token:
@@ -24,7 +24,7 @@ def get_carrier_account_names(api_token: str | None = None) -> dict[str, str]:
         "Content-Type": "application/json",
     }
 
-    names = {}
+    accounts = {}
     try:
         while url:
             resp = requests.get(url, headers=headers, timeout=30)
@@ -32,16 +32,23 @@ def get_carrier_account_names(api_token: str | None = None) -> dict[str, str]:
             data = resp.json()
             for acct in data.get("results", []):
                 obj_id = acct.get("object_id", "")
-                # Use carrier + account_id as default label
                 carrier = acct.get("carrier", "").upper()
                 acct_id = acct.get("account_id", "")
-                names[obj_id] = f"{carrier} ({acct_id})" if acct_id else carrier
+                active = acct.get("active", True)
+                name = f"{carrier} ({acct_id})" if acct_id else carrier
+                accounts[obj_id] = {"name": name, "active": active}
             url = data.get("next")
     except Exception:
         pass
 
-    _carrier_account_names = names
-    return names
+    _carrier_account_cache = accounts
+    return accounts
+
+
+def get_carrier_account_names(api_token: str | None = None) -> dict[str, str]:
+    """Return mapping of object_id -> display name (active accounts only)."""
+    accounts = _fetch_carrier_accounts(api_token)
+    return {k: v["name"] for k, v in accounts.items() if v["active"]}
 
 
 def get_domestic_rates(
@@ -110,10 +117,17 @@ def parse_shippo_rates(response_json: dict) -> list[dict]:
         Sorted by price ascending.
     """
     rates_raw = response_json.get("rates", [])
+    accounts = _fetch_carrier_accounts()
     acct_names = get_carrier_account_names()
     results = []
 
     for rate in rates_raw:
+        # Skip rates from inactive carrier accounts
+        carrier_acct_id = rate.get("carrier_account", "")
+        acct_info = accounts.get(carrier_acct_id)
+        if acct_info and not acct_info["active"]:
+            continue
+
         amount_str = rate.get("amount", "0")
         try:
             amount = float(amount_str)
@@ -128,7 +142,6 @@ def parse_shippo_rates(response_json: dict) -> list[dict]:
         if estimated_days != "N/A":
             estimated_days = str(estimated_days)
 
-        carrier_acct_id = rate.get("carrier_account", "")
         account_name = acct_names.get(carrier_acct_id, "")
 
         results.append({
