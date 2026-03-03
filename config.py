@@ -82,7 +82,7 @@ SENDER_ADDRESS = {
 
 # Default values
 DEFAULT_MARKUP_PERCENT = 15
-DEFAULT_EXCHANGE_RATE = 30  # NTD per USD
+DEFAULT_EXCHANGE_RATE = 28  # NTD per USD
 
 # Data paths (local fallback)
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
