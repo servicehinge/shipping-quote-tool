@@ -554,33 +554,44 @@ def _render_international_flow(products: dict):
                             f"建議選 Priority 出貨（速度更快）"
                         )
 
-                c1, c2, c3 = st.columns(3)
-                c1.metric("運費成本 Shipping Cost", f"NT$ {cost_ntd:,.0f}")
-                c2.metric("美金成本 USD Cost", f"US$ {usd_cost:,.2f}")
-                c3.metric(
-                    f"報價金額 Quote (+{current_markup:.0f}%)",
-                    f"US$ {quoted_usd:,.2f}",
-                )
+                left, right = st.columns([3, 1])
+                with left:
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("運費成本 Shipping Cost", f"NT$ {cost_ntd:,.0f}")
+                    c2.metric("美金成本 USD Cost", f"US$ {usd_cost:,.2f}")
+                    c3.metric(
+                        f"報價金額 Quote (+{current_markup:.0f}%)",
+                        f"US$ {quoted_usd:,.2f}",
+                    )
 
-                c4, c5 = st.columns(2)
-                c4.metric("每KG成本 Cost/KG", f"NT$ {cost_per_kg:,.2f}")
-                c5.metric("預計天數 Transit Days", rate["transit_days"])
+                    c4, c5 = st.columns(2)
+                    c4.metric("每KG成本 Cost/KG", f"NT$ {cost_per_kg:,.2f}")
+                    c5.metric("預計天數 Transit Days", rate["transit_days"])
 
-                if st.button(
-                    "儲存此報價 Save Quote",
-                    key=f"save_intl_{i}_{rate['service_type']}",
-                ):
-                    _save_quote_common(query, {
-                        "service_type": rate["service_type"],
-                        "service_name": rate["service_name"],
-                        "shipping_cost_ntd": cost_ntd,
-                        "exchange_rate": current_exchange,
-                        "usd_cost": round(usd_cost, 2),
-                        "markup_percent": current_markup,
-                        "quoted_price_usd": round(quoted_usd, 2),
-                        "cost_per_kg_ntd": round(cost_per_kg, 2),
-                    }, "international")
-                    st.success("報價已儲存! Quote saved!")
+                    if st.button(
+                        "儲存此報價 Save Quote",
+                        key=f"save_intl_{i}_{rate['service_type']}",
+                    ):
+                        _save_quote_common(query, {
+                            "service_type": rate["service_type"],
+                            "service_name": rate["service_name"],
+                            "shipping_cost_ntd": cost_ntd,
+                            "exchange_rate": current_exchange,
+                            "usd_cost": round(usd_cost, 2),
+                            "markup_percent": current_markup,
+                            "quoted_price_usd": round(quoted_usd, 2),
+                            "cost_per_kg_ntd": round(cost_per_kg, 2),
+                        }, "international")
+                        st.success("報價已儲存! Quote saved!")
+
+                with right:
+                    markup_mult = 1 + current_markup / 100
+                    copy_text = (
+                        f"Total Weight: {combined_weight:.1f} kg\n"
+                        f"Forwarder: {rate['service_name']}\n"
+                        f"Shipping: NT${cost_ntd:,.0f} / {current_exchange:.0f} x {markup_mult:.2f} = USD {quoted_usd:,.2f}"
+                    )
+                    st.code(copy_text, language=None)
 
 
 # ---------------------------------------------------------------------------
@@ -759,30 +770,42 @@ def _render_domestic_flow(products: dict):
                     heading += "　⚠️ Avoid if possible"
                 st.markdown(heading)
 
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Shippo 成本 Cost", f"US$ {shippo_cost:,.2f}")
-                c2.metric("報價金額 Quoted Price", f"US$ {quoted_usd:,.2f}")
-                c3.metric("預計天數 Transit Days", rate["estimated_days"])
+                left, right = st.columns([3, 1])
+                with left:
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Shippo 成本 Cost", f"US$ {shippo_cost:,.2f}")
+                    c2.metric("報價金額 Quoted Price", f"US$ {quoted_usd:,.2f}")
+                    c3.metric("預計天數 Transit Days", rate["estimated_days"])
 
-                st.caption(
-                    f"${shippo_cost:,.2f} × {config.DOMESTIC_MARKUP} + ${effective_fixed:.0f} = ${quoted_usd:,.2f}"
-                )
+                    st.caption(
+                        f"${shippo_cost:,.2f} × {config.DOMESTIC_MARKUP} + ${effective_fixed:.0f} = ${quoted_usd:,.2f}"
+                    )
 
-                if st.button(
-                    "儲存此報價 Save Quote",
-                    key=f"save_dom_{i}_{rate['service_token']}",
-                ):
-                    _save_quote_common(query, {
-                        "service_type": rate["service_token"],
-                        "service_name": f"{rate['provider']} {rate['service_name']}",
-                        "shipping_cost_ntd": 0,
-                        "exchange_rate": 0,
-                        "usd_cost": round(shippo_cost, 2),
-                        "markup_percent": 0,
-                        "quoted_price_usd": quoted_usd,
-                        "cost_per_kg_ntd": 0,
-                    }, "domestic")
-                    st.success("報價已儲存! Quote saved!")
+                    if st.button(
+                        "儲存此報價 Save Quote",
+                        key=f"save_dom_{i}_{rate['service_token']}",
+                    ):
+                        _save_quote_common(query, {
+                            "service_type": rate["service_token"],
+                            "service_name": f"{rate['provider']} {rate['service_name']}",
+                            "shipping_cost_ntd": 0,
+                            "exchange_rate": 0,
+                            "usd_cost": round(shippo_cost, 2),
+                            "markup_percent": 0,
+                            "quoted_price_usd": quoted_usd,
+                            "cost_per_kg_ntd": 0,
+                        }, "domestic")
+                        st.success("報價已儲存! Quote saved!")
+
+                with right:
+                    dom_combined_weight = query["combined_shipment"]["total_weight_kg"]
+                    acct_part = f" — {rate['account_name']}" if rate.get("account_name") else ""
+                    copy_text = (
+                        f"Total Weight: {dom_combined_weight:.1f} kg\n"
+                        f"Forwarder: {rate['provider']} — {rate['service_name']}{acct_part}\n"
+                        f"Shipping: USD {shippo_cost:,.2f} x {config.DOMESTIC_MARKUP} + ${effective_fixed:.0f} = USD {quoted_usd:,.2f}"
+                    )
+                    st.code(copy_text, language=None)
 
 
 # ---------------------------------------------------------------------------
@@ -870,19 +893,29 @@ def _render_ocean_flow(products: dict):
     )
 
     with st.container(border=True):
-        c1, c2, c3 = st.columns(3)
-        c1.metric("海運 Ocean $/kg", f"$ {ocean_per_kg:.2f}")
-        c2.metric("內陸 Inland $/kg", f"$ {inland_per_kg:.2f}")
-        c3.metric("合計 Combined $/kg", f"$ {combined_per_kg:.2f}")
+        left, right = st.columns([3, 1])
+        with left:
+            c1, c2, c3 = st.columns(3)
+            c1.metric("海運 Ocean $/kg", f"$ {ocean_per_kg:.2f}")
+            c2.metric("內陸 Inland $/kg", f"$ {inland_per_kg:.2f}")
+            c3.metric("合計 Combined $/kg", f"$ {combined_per_kg:.2f}")
 
-        c4, c5, c6 = st.columns(3)
-        c4.metric("產品重量 Product Weight", f"{total_weight_kg} kg")
-        c5.metric("額外重量 Extra Weight", f"{extra_weight:.1f} kg")
-        c6.metric("合計重量 Combined Weight", f"{combined_weight:.1f} kg")
+            c4, c5, c6 = st.columns(3)
+            c4.metric("產品重量 Product Weight", f"{total_weight_kg} kg")
+            c5.metric("額外重量 Extra Weight", f"{extra_weight:.1f} kg")
+            c6.metric("合計重量 Combined Weight", f"{combined_weight:.1f} kg")
 
-        c7, c8 = st.columns(2)
-        c7.metric("訂單處理費 Handling Fee", f"$ {insurance:,.0f}")
-        c8.metric("總報價 Grand Total", f"US$ {grand_total:,.2f}")
+            c7, c8 = st.columns(2)
+            c7.metric("訂單處理費 Handling Fee", f"$ {insurance:,.0f}")
+            c8.metric("總報價 Grand Total", f"US$ {grand_total:,.2f}")
+
+        with right:
+            copy_text = (
+                f"Total Weight: {combined_weight:.1f} kg\n"
+                f"Forwarder: Ocean Shipping\n"
+                f"Shipping: ({ocean_per_kg:.2f} + {inland_per_kg:.2f}) x {combined_weight:.1f} kg + ${insurance:.0f} = USD {grand_total:,.2f}"
+            )
+            st.code(copy_text, language=None)
 
     # ── Save ──
     if st.button("儲存此報價 Save Quote", type="primary", use_container_width=True, key=f"{pfx}_save_btn"):
