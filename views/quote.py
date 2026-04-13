@@ -23,11 +23,59 @@ US_STATES = {
 }
 
 MAX_PRODUCTS = 5
+_TAB_PREFIXES = ("intl", "dom", "ocean")
 
 QUICK_MODELS = [
     "K51M-400-X3", "K51M-450-X3", "K51M-450-X2",
     "K51P-500-X2", "K51M-500D-X3", "K51MP-450-X2", "K51MP-450-X3",
 ]
+
+
+def _find_source_pfx(exclude_pfx: str) -> str | None:
+    """Find the first tab that has a product selected, skipping *exclude_pfx*."""
+    for pfx in _TAB_PREFIXES:
+        if pfx == exclude_pfx:
+            continue
+        if f"{pfx}_num_product_rows" in st.session_state:
+            model_key = f"{pfx}_product_0_model"
+            if model_key in st.session_state and st.session_state[model_key] is not None:
+                return pfx
+    return None
+
+
+def _sync_inputs_to_tab(target_pfx: str):
+    """Pre-fill target tab from another tab (first time only)."""
+    rows_key = f"{target_pfx}_num_product_rows"
+    if rows_key in st.session_state:
+        return  # already initialised – don't overwrite
+
+    source_pfx = _find_source_pfx(target_pfx)
+    if source_pfx is None:
+        return
+
+    num_rows = st.session_state.get(f"{source_pfx}_num_product_rows", 1)
+    st.session_state[rows_key] = num_rows
+
+    for i in range(num_rows):
+        for suffix in (f"_product_{i}_model", f"_product_{i}_qty"):
+            src_key = f"{source_pfx}{suffix}"
+            if src_key in st.session_state:
+                st.session_state[f"{target_pfx}{suffix}"] = st.session_state[src_key]
+
+    for suffix in ("_extra_weight", "_dest_zip", "_addr_mode", "_full_addr"):
+        src_key = f"{source_pfx}{suffix}"
+        if src_key in st.session_state:
+            st.session_state[f"{target_pfx}{suffix}"] = st.session_state[src_key]
+
+
+def _clear_all_inputs():
+    """Clear every tab-specific session-state key."""
+    keys_to_clear = [
+        k for k in st.session_state
+        if any(k.startswith(f"{pfx}_") for pfx in _TAB_PREFIXES)
+    ]
+    for k in keys_to_clear:
+        del st.session_state[k]
 
 
 def _parse_us_address(text: str) -> dict:
@@ -337,6 +385,13 @@ def _save_quote_common(query, rate_data, shipping_type):
 # ---------------------------------------------------------------------------
 
 def render_quote_page(products: dict):
+    # ── Clear All button ──
+    _, _, col_clear = st.columns([5, 5, 2])
+    with col_clear:
+        if st.button("清除全部 Clear All", key="clear_all_btn"):
+            _clear_all_inputs()
+            st.rerun()
+
     tab_intl, tab_dom, tab_ocean = st.tabs([
         "\u2708\uFE0F  International  國際運費",
         "\U0001F69A  Domestic  美國國內",
@@ -346,8 +401,10 @@ def render_quote_page(products: dict):
     with tab_intl:
         _render_international_flow(products)
     with tab_dom:
+        _sync_inputs_to_tab("dom")
         _render_domestic_flow(products)
     with tab_ocean:
+        _sync_inputs_to_tab("ocean")
         _render_ocean_flow(products)
 
 
