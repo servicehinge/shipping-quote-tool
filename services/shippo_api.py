@@ -1,5 +1,6 @@
 import requests
 import config
+from services.http import SESSION
 
 # Cache carrier account info (fetched once per session)
 _carrier_account_cache: dict | None = None
@@ -31,7 +32,7 @@ def _fetch_carrier_accounts(api_token: str | None = None) -> dict:
     accounts = {}
     try:
         while url:
-            resp = requests.get(url, headers=headers, timeout=30)
+            resp = SESSION.get(url, headers=headers, timeout=30)
             resp.raise_for_status()
             data = resp.json()
             for acct in data.get("results", []):
@@ -107,7 +108,7 @@ def get_domestic_rates(
         "async": False,
     }
 
-    response = requests.post(url, json=payload, headers=headers, timeout=60)
+    response = SESSION.post(url, json=payload, headers=headers, timeout=60)
     response.raise_for_status()
     return response.json()
 

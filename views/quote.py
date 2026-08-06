@@ -31,6 +31,20 @@ QUICK_MODELS = [
 ]
 
 
+_ZIP_RE = re.compile(r"^\d{5}$")
+_FEDEX_ACCOUNT_RE = re.compile(r"^\d{9}$")
+
+
+def _is_valid_zip(zip_code: str) -> bool:
+    """A US ZIP entered here must be exactly 5 digits."""
+    return bool(_ZIP_RE.fullmatch((zip_code or "").strip()))
+
+
+def _is_valid_fedex_account(account: str) -> bool:
+    """FedEx account numbers are 9 digits."""
+    return bool(_FEDEX_ACCOUNT_RE.fullmatch((account or "").strip()))
+
+
 def _find_source_pfx(exclude_pfx: str) -> str | None:
     """Find the first tab that has a product selected, skipping *exclude_pfx*."""
     for pfx in _TAB_PREFIXES:
@@ -475,14 +489,22 @@ def _render_international_flow(products: dict):
     _clear_old_results_if_changed(product_entries, dest_zip, dest_state, f"{pfx}_last_query")
 
     # ── Query Button ──
-    account_number = st.session_state.get("fedex_account", "")
+    account_number = (st.session_state.get("fedex_account", "") or "").strip()
 
     if st.button("查詢 FedEx 運費 Get FedEx Rates", type="primary", use_container_width=True, key=f"{pfx}_query_btn"):
         if not account_number:
             st.error("請在左側欄輸入 FedEx 帳號號碼（9位數）\nPlease enter FedEx Account No. (9 digits) in the sidebar")
             return
+        if not _is_valid_fedex_account(account_number):
+            st.error("FedEx 帳號需為 9 碼數字\nFedEx Account No. must be 9 digits")
+            return
+
+        dest_zip = dest_zip.strip()
         if not dest_zip and not (dest_city and dest_state):
             st.error("請輸入 ZIP Code 或完整地址\nPlease enter a ZIP Code or full address")
+            return
+        if dest_zip and not _is_valid_zip(dest_zip):
+            st.error("ZIP Code 需為 5 碼數字\nZIP Code must be 5 digits")
             return
 
         destination = {
@@ -754,8 +776,15 @@ def _render_domestic_flow(products: dict):
         if not sender_address or not sender_address.get("zip"):
             st.error("請選擇寄件倉庫或輸入自訂 ZIP\nPlease select a sender warehouse or enter a custom ZIP")
             return
+        if not _is_valid_zip(sender_address.get("zip", "")):
+            st.error("寄件 ZIP 需為 5 碼數字\nSender ZIP must be 5 digits")
+            return
+        dest_zip = dest_zip.strip()
         if not dest_zip:
             st.error("請輸入目的地 ZIP Code\nPlease enter a destination ZIP Code")
+            return
+        if not _is_valid_zip(dest_zip):
+            st.error("目的地 ZIP Code 需為 5 碼數字\nDestination ZIP Code must be 5 digits")
             return
 
         parcels = _build_shippo_parcels(total_cartons, combined_weight)

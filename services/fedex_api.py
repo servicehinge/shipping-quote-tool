@@ -1,6 +1,7 @@
 import requests
 from datetime import date, datetime, timedelta
 import config
+from services.http import SESSION
 
 
 # Token cache
@@ -13,7 +14,7 @@ def lookup_zip_code(city: str, state: str) -> str:
         return ""
     try:
         url = f"https://api.zippopotam.us/us/{state}/{city}"
-        resp = requests.get(url, timeout=10)
+        resp = SESSION.get(url, timeout=10)
         if resp.status_code == 200:
             places = resp.json().get("places", [])
             if places:
@@ -50,7 +51,7 @@ def get_oauth_token(account_number=None, force_refresh=False) -> str:
 
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
-    response = requests.post(url, data=payload, headers=headers, timeout=30)
+    response = SESSION.post(url, data=payload, headers=headers, timeout=30)
     response.raise_for_status()
 
     data = response.json()
@@ -158,13 +159,13 @@ def get_rate_quote(
         },
     }
 
-    response = requests.post(url, json=payload, headers=headers, timeout=60)
+    response = SESSION.post(url, json=payload, headers=headers, timeout=60)
 
     # If 401, retry with fresh token
     if response.status_code == 401:
         token = get_oauth_token(account_number=account_number, force_refresh=True)
         headers["Authorization"] = f"Bearer {token}"
-        response = requests.post(url, json=payload, headers=headers, timeout=60)
+        response = SESSION.post(url, json=payload, headers=headers, timeout=60)
 
     response.raise_for_status()
     return response.json()
