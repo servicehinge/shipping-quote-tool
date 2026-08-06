@@ -4,6 +4,10 @@ import config
 # Cache carrier account info (fetched once per session)
 _carrier_account_cache: dict | None = None
 
+# Carrier accounts whose rates we cannot actually use, so they are hidden
+# from the domestic rate results (e.g. Mayflowers = the UPS account).
+EXCLUDED_ACCOUNT_NAMES = {"Mayflowers"}
+
 
 def _fetch_carrier_accounts(api_token: str | None = None) -> dict:
     """
@@ -150,6 +154,10 @@ def parse_shippo_rates(response_json: dict) -> list[dict]:
             estimated_days = str(estimated_days)
 
         account_name = acct_names.get(carrier_acct_id, "")
+
+        # Skip carriers whose rates we cannot use (e.g. Mayflowers/UPS)
+        if account_name in EXCLUDED_ACCOUNT_NAMES:
+            continue
 
         results.append({
             "provider": rate.get("provider", ""),
