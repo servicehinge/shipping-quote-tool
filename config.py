@@ -42,6 +42,14 @@ DOMESTIC_SENDERS = {
         "zip": "91761",
         "country": "US",
     },
+    "Santa Fe (LV)": {
+        "street1": "6101 N. Hollywood Blvd",
+        "street2": "Suite 105",
+        "city": "Las Vegas",
+        "state": "NV",
+        "zip": "89115",
+        "country": "US",
+    },
 }
 
 # Common US destinations (quick pick)

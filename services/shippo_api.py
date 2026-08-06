@@ -89,6 +89,7 @@ def get_domestic_rates(
     payload = {
         "address_from": {
             "street1": sender.get("street1", ""),
+            "street2": sender.get("street2", ""),
             "city": sender.get("city", ""),
             "state": sender.get("state", ""),
             "zip": sender.get("zip", ""),
