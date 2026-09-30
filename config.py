@@ -52,12 +52,38 @@ DOMESTIC_SENDERS = {
     },
 }
 
-# Common US destinations (quick pick)
+# Common destinations (quick pick)
 COMMON_DESTINATIONS = {
-    "Mayflowers": {"zip": "11238"},
-    "San Diego Hardware": {"zip": "92123"},
-    "IML Dallas": {"zip": "76011"},
+    "Mayflowers": {"zip": "11238", "country": "US"},
+    "San Diego Hardware": {"zip": "92123", "country": "US"},
+    "IML Dallas": {"zip": "76011", "country": "US"},
 }
+
+# Destination countries for the International tab only.
+# Keys are FedEx country codes. "label" is what the UI shows: never surface the
+# bare code for Canada, because "CA" reads as California to the sales team.
+INTL_COUNTRIES = {
+    "US": {
+        "label": "United States",
+        "postal_regex": r"^\d{5}(?:-\d{4})?$",
+        "postal_label": "郵遞區號 ZIP Code",
+        "postal_term": "ZIP Code",
+        "postal_placeholder": "90001",
+        "postal_error": "ZIP Code 需為 5 碼數字\nZIP Code must be 5 digits",
+        "address_placeholder": "例 Example: 1234 Main St, Los Angeles, CA 90001",
+    },
+    "CA": {
+        "label": "Canada",
+        # A1A 1A1. D/F/I/O/Q/U are never used; W/Z never lead.
+        "postal_regex": r"^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z] ?\d[ABCEGHJ-NPRSTV-Z]\d$",
+        "postal_label": "郵遞區號 Postal Code",
+        "postal_term": "Postal Code",
+        "postal_placeholder": "M5V 3A8",
+        "postal_error": "加拿大郵遞區號格式為 A1A 1A1\nCanadian postal code must look like A1A 1A1",
+        "address_placeholder": "例 Example: 100 Queen St W, Toronto, ON M5H 2N2",
+    },
+}
+DEFAULT_INTL_COUNTRY = "US"
 
 # Default carton dimensions for Shippo (cm)
 DEFAULT_CARTON_LENGTH_CM = 30

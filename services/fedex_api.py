@@ -76,7 +76,8 @@ def get_rate_quote(
         num_packages: 總箱數
         destination: {
             "postal_code": "90001",
-            "state_code": "CA",      # 選填
+            "country_code": "US",    # 選填，預設 US；加拿大為 "CA"
+            "state_code": "CA",      # 選填（FedEx 會自行從郵遞區號補上）
             "city": "Los Angeles",   # 選填
             "street": ""             # 選填
         }
@@ -93,14 +94,22 @@ def get_rate_quote(
         "X-locale": "en_US",
     }
 
-    # Auto-lookup ZIP if missing but city + state available
+    country_code = (destination.get("country_code") or "US").upper()
+
+    # Auto-lookup ZIP if missing but city + state available.
+    # zippopotam's /us/ endpoint is US-only, so never guess for other countries.
     postal_code = destination.get("postal_code") or ""
-    if not postal_code and destination.get("city") and destination.get("state_code"):
+    if (
+        not postal_code
+        and country_code == "US"
+        and destination.get("city")
+        and destination.get("state_code")
+    ):
         postal_code = lookup_zip_code(destination["city"], destination["state_code"])
 
     # Build recipient address
     recipient_address = {
-        "countryCode": "US",
+        "countryCode": country_code,
         "residential": False,
         "postalCode": postal_code,
         "stateOrProvinceCode": destination.get("state_code") or "",
