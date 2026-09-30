@@ -22,6 +22,21 @@ US_STATES = {
     "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC",
 }
 
+# Canadian provinces and territories. Kept separate from US_STATES on purpose:
+# the two sets overlap in spirit but never in meaning.
+CA_PROVINCES = {
+    "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT",
+}
+
+# First letter of a Canadian postal code determines the province. "X" covers
+# both NT and NU, so it is left out rather than guessed wrong.
+CA_POSTAL_PREFIX_PROVINCE = {
+    "A": "NL", "B": "NS", "C": "PE", "E": "NB",
+    "G": "QC", "H": "QC", "J": "QC",
+    "K": "ON", "L": "ON", "M": "ON", "N": "ON", "P": "ON",
+    "R": "MB", "S": "SK", "T": "AB", "V": "BC", "Y": "YT",
+}
+
 MAX_PRODUCTS = 5
 _TAB_PREFIXES = ("intl", "dom", "ocean")
 
@@ -33,11 +48,58 @@ QUICK_MODELS = [
 
 _ZIP_RE = re.compile(r"^\d{5}$")
 _FEDEX_ACCOUNT_RE = re.compile(r"^\d{9}$")
+_CA_POSTAL_RE = re.compile(
+    r"\b([ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z])\s?(\d[ABCEGHJ-NPRSTV-Z]\d)\b",
+    re.IGNORECASE,
+)
 
 
 def _is_valid_zip(zip_code: str) -> bool:
     """A US ZIP entered here must be exactly 5 digits."""
     return bool(_ZIP_RE.fullmatch((zip_code or "").strip()))
+
+
+def _country_config(country: str) -> dict:
+    return config.INTL_COUNTRIES.get(country, config.INTL_COUNTRIES[config.DEFAULT_INTL_COUNTRY])
+
+
+def _normalize_postal(code: str, country: str) -> str:
+    """Canonical form per country: US stays as typed, CA becomes 'A1A 1A1'."""
+    code = (code or "").strip()
+    if country == "CA":
+        compact = re.sub(r"\s+", "", code).upper()
+        if len(compact) == 6:
+            return f"{compact[:3]} {compact[3:]}"
+        return compact
+    return code
+
+
+def _is_valid_postal(code: str, country: str) -> bool:
+    """Validate a postal code against its own country's rules."""
+    pattern = _country_config(country)["postal_regex"]
+    return bool(re.fullmatch(pattern, (code or "").strip(), re.IGNORECASE))
+
+
+def _ca_province_from_postal(postal: str) -> str:
+    """Derive the province from a Canadian postal code's first letter."""
+    compact = re.sub(r"\s+", "", postal or "").upper()
+    if not compact:
+        return ""
+    return CA_POSTAL_PREFIX_PROVINCE.get(compact[0], "")
+
+
+def _format_dest_state(state: str, country: str) -> str:
+    """
+    History label for the destination region.
+
+    US records stay exactly as before ("CA" = California). Canadian records are
+    always tagged with the full country name so a province is never mistaken for
+    a US state code.
+    """
+    if country == "US":
+        return state or ""
+    label = _country_config(country)["label"]
+    return f"{state} ({label})" if state else f"({label})"
 
 
 def _is_valid_fedex_account(account: str) -> bool:
@@ -76,7 +138,17 @@ def _sync_inputs_to_tab(target_pfx: str):
             if src_key in st.session_state:
                 st.session_state[f"{target_pfx}{suffix}"] = st.session_state[src_key]
 
-    for suffix in ("_extra_weight", "_dest_zip", "_addr_mode", "_full_addr"):
+    # Domestic and Ocean are US-only. A Canadian postal code copied across from
+    # the International tab would just fail Shippo's validation, so only the
+    # weight carries over when the source destination isn't the US.
+    source_country = st.session_state.get(
+        f"{source_pfx}_dest_country", config.DEFAULT_INTL_COUNTRY
+    )
+    suffixes = ["_extra_weight"]
+    if source_country == "US":
+        suffixes += ["_dest_zip", "_addr_mode_US", "_full_addr"]
+
+    for suffix in suffixes:
         src_key = f"{source_pfx}{suffix}"
         if src_key in st.session_state:
             st.session_state[f"{target_pfx}{suffix}"] = st.session_state[src_key]
@@ -92,26 +164,8 @@ def _clear_all_inputs():
         del st.session_state[k]
 
 
-def _parse_us_address(text: str) -> dict:
-    """Parse a US address, return {zip, state, city, street}"""
-    result = {"zip": "", "state": "", "city": "", "street": ""}
-    text = text.strip()
-    if not text:
-        return result
-
-    text = re.sub(r"\b(United\s+States|USA|U\.S\.A\.?|US)\b", "", text, flags=re.IGNORECASE)
-
-    zip_match = re.search(r"\b(\d{5})(?:-\d{4})?\b", text)
-    if zip_match:
-        result["zip"] = zip_match.group(1)
-        text = text[:zip_match.start()] + text[zip_match.end():]
-
-    for token in re.findall(r"\b([A-Za-z]{2})\b", text):
-        if token.upper() in US_STATES:
-            result["state"] = token.upper()
-            text = re.sub(r"\b" + re.escape(token) + r"\b", "", text, count=1)
-            break
-
+def _split_city_street(text: str, result: dict) -> dict:
+    """Shared tail end of address parsing: whatever is left is street + city."""
     text = re.sub(r"[,.\n]+", ",", text)
     parts = [p.strip() for p in text.split(",") if p.strip()]
 
@@ -122,6 +176,67 @@ def _parse_us_address(text: str) -> dict:
         result["city"] = parts[0]
 
     return result
+
+
+def _parse_us_address(text: str) -> dict:
+    """Parse a US address, return {zip, state, city, street}"""
+    result = {"zip": "", "state": "", "city": "", "street": ""}
+    text = text.strip()
+    if not text:
+        return result
+
+    text = re.sub(r"\b(United\s+States|USA|U\.S\.A\.?|US)\b", "", text, flags=re.IGNORECASE)
+
+    # Search from the end: a US ZIP trails the address, while a 5-digit house
+    # number leads it. Matching left-to-right turned "12345 Yonge St" into ZIP
+    # 12345 and quietly priced a shipment to Schenectady NY.
+    zip_matches = list(re.finditer(r"\b(\d{5})(?:-\d{4})?\b", text))
+    if zip_matches:
+        zip_match = zip_matches[-1]
+        result["zip"] = zip_match.group(1)
+        text = text[:zip_match.start()] + text[zip_match.end():]
+
+    for token in re.findall(r"\b([A-Za-z]{2})\b", text):
+        if token.upper() in US_STATES:
+            result["state"] = token.upper()
+            text = re.sub(r"\b" + re.escape(token) + r"\b", "", text, count=1)
+            break
+
+    return _split_city_street(text, result)
+
+
+def _parse_ca_address(text: str) -> dict:
+    """Parse a Canadian address, return {zip, state, city, street}"""
+    result = {"zip": "", "state": "", "city": "", "street": ""}
+    text = text.strip()
+    if not text:
+        return result
+
+    text = re.sub(r"\b(Canada|CAN)\b", "", text, flags=re.IGNORECASE)
+
+    # The A1A 1A1 shape is specific enough that a house number can't impersonate it.
+    postal_match = _CA_POSTAL_RE.search(text)
+    if postal_match:
+        result["zip"] = f"{postal_match.group(1).upper()} {postal_match.group(2).upper()}"
+        text = text[:postal_match.start()] + text[postal_match.end():]
+
+    for token in re.findall(r"\b([A-Za-z]{2})\b", text):
+        if token.upper() in CA_PROVINCES:
+            result["state"] = token.upper()
+            text = re.sub(r"\b" + re.escape(token) + r"\b", "", text, count=1)
+            break
+
+    if not result["state"]:
+        result["state"] = _ca_province_from_postal(result["zip"])
+
+    return _split_city_street(text, result)
+
+
+def _parse_address(text: str, country: str) -> dict:
+    """Parse a destination address using the selected country's rules."""
+    if country == "CA":
+        return _parse_ca_address(text)
+    return _parse_us_address(text)
 
 
 def _parse_prefill_products(prefill: dict) -> list:
@@ -139,7 +254,9 @@ def _parse_prefill_products(prefill: dict) -> list:
     return list(zip(models, quantities))
 
 
-def _clear_old_results_if_changed(product_entries, dest_zip, dest_state, state_key):
+def _clear_old_results_if_changed(
+    product_entries, dest_zip, dest_state, state_key, dest_country="US"
+):
     """Clear old results when input conditions change"""
     if state_key not in st.session_state:
         return
@@ -151,6 +268,7 @@ def _clear_old_results_if_changed(product_entries, dest_zip, dest_state, state_k
         current_key != saved_key
         or q["dest_zip"] != dest_zip
         or q["dest_state"] != dest_state
+        or q.get("dest_country", "US") != dest_country
     ):
         st.session_state.pop(rates_key, None)
         st.session_state.pop(state_key, None)
@@ -305,13 +423,41 @@ def _render_product_section(products, prefill, prefill_products, pfx):
     return product_entries, total_cartons, total_weight_kg, total_sets
 
 
-def _render_destination_section(prefill, pfx):
-    """Render the US destination section. Returns (dest_zip, dest_state, dest_city, dest_street)."""
+def _render_destination_section(prefill, pfx, allow_international=False):
+    """
+    Render the destination section.
+
+    *allow_international* adds a country selector (International tab only).
+    Domestic and Ocean stay US-only: Shippo is a US domestic carrier and the
+    ocean tab prices a US warehouse leg.
+
+    Returns (dest_zip, dest_state, dest_city, dest_street, dest_country).
+    """
+    dest_country = config.DEFAULT_INTL_COUNTRY
+
+    if allow_international:
+        def _on_country_change():
+            # A ZIP left behind from the previous country would only fail
+            # validation under the new one's rules.
+            st.session_state.pop(f"{pfx}_dest_zip", None)
+            st.session_state.pop(f"{pfx}_full_addr", None)
+
+        dest_country = st.selectbox(
+            "目的地國家 Destination Country",
+            list(config.INTL_COUNTRIES),
+            format_func=lambda code: config.INTL_COUNTRIES[code]["label"],
+            key=f"{pfx}_dest_country",
+            on_change=_on_country_change,
+        )
+
+    country_cfg = _country_config(dest_country)
+    postal_tab_label = "ZIP Code" if dest_country == "US" else "Postal Code"
+
     addr_mode = st.radio(
         "輸入方式 Input Method",
-        ["ZIP Code", "貼上完整地址 Paste Full Address"],
+        [postal_tab_label, "貼上完整地址 Paste Full Address"],
         horizontal=True,
-        key=f"{pfx}_addr_mode",
+        key=f"{pfx}_addr_mode_{dest_country}",
     )
 
     dest_zip = ""
@@ -319,32 +465,41 @@ def _render_destination_section(prefill, pfx):
     dest_city = ""
     dest_street = ""
 
-    if addr_mode == "ZIP Code":
-        # Quick pick buttons for common destinations
-        cols = st.columns(len(config.COMMON_DESTINATIONS) + 1)
-        cols[0].markdown("**常用 Quick Pick:**")
-        for i, (name, info) in enumerate(config.COMMON_DESTINATIONS.items()):
-            if cols[i + 1].button(
-                f"{name} {info['zip']}",
-                key=f"{pfx}_qp_{name}",
-            ):
-                st.session_state[f"{pfx}_dest_zip"] = info["zip"]
+    if addr_mode == postal_tab_label:
+        # Quick pick buttons for common destinations in the selected country
+        quick_picks = {
+            name: info
+            for name, info in config.COMMON_DESTINATIONS.items()
+            if info.get("country", "US") == dest_country
+        }
+        if quick_picks:
+            cols = st.columns(len(quick_picks) + 1)
+            cols[0].markdown("**常用 Quick Pick:**")
+            for i, (name, info) in enumerate(quick_picks.items()):
+                if cols[i + 1].button(
+                    f"{name} {info['zip']}",
+                    key=f"{pfx}_qp_{name}",
+                ):
+                    st.session_state[f"{pfx}_dest_zip"] = info["zip"]
 
         dest_zip = st.text_input(
-            "郵遞區號 ZIP Code",
+            country_cfg["postal_label"],
             value=prefill["dest_zip"] if prefill else "",
-            placeholder="90001",
+            placeholder=country_cfg["postal_placeholder"],
             key=f"{pfx}_dest_zip",
         )
+        dest_zip = _normalize_postal(dest_zip, dest_country)
+        if dest_country == "CA":
+            dest_state = _ca_province_from_postal(dest_zip)
     else:
         full_addr = st.text_area(
             "貼上地址 Paste Address",
             height=80,
-            placeholder="例 Example: 1234 Main St, Los Angeles, CA 90001",
+            placeholder=country_cfg["address_placeholder"],
             key=f"{pfx}_full_addr",
         )
         if full_addr.strip():
-            parsed = _parse_us_address(full_addr)
+            parsed = _parse_address(full_addr, dest_country)
             dest_zip = parsed["zip"]
             dest_state = parsed["state"]
             dest_city = parsed["city"]
@@ -355,15 +510,18 @@ def _render_destination_section(prefill, pfx):
             if dest_city:
                 parts.append(f"City: {dest_city}")
             if dest_state:
-                parts.append(f"State: {dest_state}")
+                parts.append(
+                    f"State: {dest_state}" if dest_country == "US"
+                    else f"Province: {dest_state}"
+                )
             if dest_zip:
-                parts.append(f"ZIP: {dest_zip}")
+                parts.append(f"{postal_tab_label}: {dest_zip}")
             if parts:
                 st.caption("解析結果 Parsed: " + " / ".join(parts))
             else:
                 st.caption("無法解析地址 Could not parse address")
 
-    return dest_zip, dest_state, dest_city, dest_street
+    return dest_zip, dest_state, dest_city, dest_street, dest_country
 
 
 def _save_quote_common(query, rate_data, shipping_type):
@@ -387,7 +545,11 @@ def _save_quote_common(query, rate_data, shipping_type):
         "quantity_sets": quantity_sets_str,
         "num_cartons": query["combined_shipment"]["num_cartons"],
         "total_weight_kg": query["combined_shipment"]["total_weight_kg"],
-        "destination_state": query["dest_state"],
+        # No separate country column: non-US destinations are tagged inline so a
+        # province can never be read back as a US state code.
+        "destination_state": _format_dest_state(
+            query["dest_state"], query.get("dest_country", "US")
+        ),
         "destination_zip": query["dest_zip"],
     }
     record.update(rate_data)
@@ -456,8 +618,10 @@ def _render_international_flow(products: dict):
     st.divider()
 
     # ── 2. Destination ──
-    st.subheader("2. 美國目的地 US Destination")
-    dest_zip, dest_state, dest_city, dest_street = _render_destination_section(prefill, pfx)
+    st.subheader("2. 目的地 Destination")
+    dest_zip, dest_state, dest_city, dest_street, dest_country = _render_destination_section(
+        prefill, pfx, allow_international=True
+    )
 
     st.divider()
 
@@ -486,7 +650,9 @@ def _render_international_flow(products: dict):
     st.divider()
 
     # ── Clear stale results ──
-    _clear_old_results_if_changed(product_entries, dest_zip, dest_state, f"{pfx}_last_query")
+    _clear_old_results_if_changed(
+        product_entries, dest_zip, dest_state, f"{pfx}_last_query", dest_country
+    )
 
     # ── Query Button ──
     account_number = (st.session_state.get("fedex_account", "") or "").strip()
@@ -499,16 +665,22 @@ def _render_international_flow(products: dict):
             st.error("FedEx 帳號需為 9 碼數字\nFedEx Account No. must be 9 digits")
             return
 
-        dest_zip = dest_zip.strip()
+        country_cfg = _country_config(dest_country)
+
+        dest_zip = _normalize_postal(dest_zip, dest_country)
         if not dest_zip and not (dest_city and dest_state):
-            st.error("請輸入 ZIP Code 或完整地址\nPlease enter a ZIP Code or full address")
+            st.error(
+                f"請輸入{country_cfg['postal_label']}或完整地址\n"
+                f"Please enter a {country_cfg['postal_term']} or full address"
+            )
             return
-        if dest_zip and not _is_valid_zip(dest_zip):
-            st.error("ZIP Code 需為 5 碼數字\nZIP Code must be 5 digits")
+        if dest_zip and not _is_valid_postal(dest_zip, dest_country):
+            st.error(country_cfg["postal_error"])
             return
 
         destination = {
             "postal_code": dest_zip,
+            "country_code": dest_country,
             "state_code": dest_state.upper() if dest_state else "",
             "city": dest_city,
             "street": dest_street,
@@ -541,6 +713,7 @@ def _render_international_flow(products: dict):
                     "combined_shipment": combined_shipment,
                     "dest_state": dest_state,
                     "dest_zip": dest_zip,
+                    "dest_country": dest_country,
                     "exchange_rate": exchange_rate,
                     "markup_percent": markup_percent,
                 }
@@ -562,6 +735,15 @@ def _render_international_flow(products: dict):
 
         query = st.session_state[f"{pfx}_last_query"]
         rates = st.session_state[f"{pfx}_last_rates"]
+
+        # Spell out what was actually quoted: a rate for the wrong country looks
+        # perfectly normal on screen.
+        quoted_country = _country_config(query.get("dest_country", "US"))["label"]
+        quoted_where = " ".join(
+            p for p in (query.get("dest_state", ""), query.get("dest_zip", "")) if p
+        )
+        st.caption(f"報價目的地 Quoted destination: {quoted_country} {quoted_where}".rstrip())
+
         current_exchange = exchange_rate
         current_markup = markup_percent
 
@@ -744,7 +926,7 @@ def _render_domestic_flow(products: dict):
 
     # ── 3. Destination ──
     st.subheader("3. 收件地 US Destination")
-    dest_zip, dest_state, dest_city, dest_street = _render_destination_section(prefill, pfx)
+    dest_zip, dest_state, dest_city, dest_street, _ = _render_destination_section(prefill, pfx)
 
     st.divider()
 
@@ -929,7 +1111,7 @@ def _render_ocean_flow(products: dict):
 
     # ── 2. Destination (for record keeping) ──
     st.subheader("2. 美國目的地 US Destination")
-    dest_zip, dest_state, dest_city, dest_street = _render_destination_section(prefill, pfx)
+    dest_zip, dest_state, dest_city, dest_street, _ = _render_destination_section(prefill, pfx)
 
     st.divider()
 
